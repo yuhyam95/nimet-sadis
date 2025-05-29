@@ -4,15 +4,15 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { FileFetcherForm } from "@/components/file-fetcher-form";
 import type { FtpConfig, LogEntry, AppStatus } from "@/types";
-import { getAppStatusAndLogs, submitConfiguration, toggleMonitoring } from "@/lib/actions";
+import { getAppStatusAndLogs } from "@/lib/actions";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"; // For consistency
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, Info } from "lucide-react";
 
 
 export default function ConfigurationPage() {
   const [config, setConfig] = useState<FtpConfig | null>(null);
-  const [formLogs, setFormLogs] = useState<LogEntry[]>([]); // Logs specific to form actions
+  const [formLogs, setFormLogs] = useState<LogEntry[]>([]);
   const [isMonitoring, setIsMonitoring] = useState<boolean>(false);
   const [pageStatus, setPageStatus] = useState<"loading" | "ready" | "error">("loading");
 
@@ -21,12 +21,16 @@ export default function ConfigurationPage() {
       { ...newLog, id: crypto.randomUUID(), timestamp: new Date() },
       ...prevLogs,
     ].slice(0, 10));
-  }, []);
+  }, []); // setFormLogs is stable
 
   const handleConfigChange = useCallback((newConfig: FtpConfig) => {
     setConfig(newConfig);
     // The form submission itself handles logging and starting monitoring via server action
-  }, []);
+  }, []); // setConfig is stable
+
+  const stableSetIsMonitoring = useCallback((monitoringState: boolean) => {
+    setIsMonitoring(monitoringState);
+  }, []); // setIsMonitoring is stable
 
   // Fetch initial config and monitoring status
   useEffect(() => {
@@ -83,14 +87,11 @@ export default function ConfigurationPage() {
         )}
         {pageStatus === "ready" && (
           <FileFetcherForm
-            onConfigChange={handleConfigChange} // Updates local config state if needed after action
-            addLog={addFormLog} // For form-specific feedback
+            onConfigChange={handleConfigChange} 
+            addLog={addFormLog}
             initialConfig={config || undefined}
             isCurrentlyMonitoring={isMonitoring}
-            setIsCurrentlyMonitoring={(monitoringState) => {
-                setIsMonitoring(monitoringState); // Update local state for button
-                // Server action `toggleMonitoring` handles the actual state change
-            }}
+            setIsCurrentlyMonitoring={stableSetIsMonitoring}
           />
         )}
         
