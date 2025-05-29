@@ -1,13 +1,13 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { FileFetcherForm } from "@/components/file-fetcher-form";
 import { StatusDisplay } from "@/components/status-display";
 import type { FtpConfig, LogEntry, AppStatus } from "@/types";
 import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/hooks/use-toast";
-import { getAppStatusAndLogs } from "@/lib/actions"; // Assuming this action exists
+import { getAppStatusAndLogs } from "@/lib/actions"; 
 
 export default function FileFetcherPage() {
   const [config, setConfig] = useState<FtpConfig | null>(null);
@@ -20,91 +20,117 @@ export default function FileFetcherPage() {
     setLogs((prevLogs) => [
       { ...newLog, id: crypto.randomUUID(), timestamp: new Date() },
       ...prevLogs,
-    ].slice(0, 100)); // Keep last 100 logs
+    ].slice(0, 100)); 
   }, []);
   
   const handleConfigChange = useCallback((newConfig: FtpConfig) => {
     setConfig(newConfig);
-    setCurrentStatus("monitoring"); // Or 'configuring' then 'monitoring'
+    // Initial status will be set by the main useEffect when isMonitoring becomes true
     addLogEntry({ message: `Configuration updated for ${newConfig.host}`, type: 'info' });
   }, [addLogEntry]);
 
-  // Effect to fetch initial status or on config change
   useEffect(() => {
     async function fetchStatus() {
       try {
-        // Simulating an initial fetch or update
         const { status: serverStatus, logs: serverLogs, config: serverConfig } = await getAppStatusAndLogs();
         if (serverConfig) {
           setConfig(serverConfig);
         }
-        setIsMonitoring(serverStatus === 'monitoring');
-        setCurrentStatus(serverStatus);
-        // addLogEntry({ message: "Application status refreshed.", type: 'info' }); // Potentially too noisy
+        // Only set isMonitoring based on serverStatus if there's a config,
+        // otherwise, it might conflict with user actions before config is set.
+        if (serverConfig) {
+            setIsMonitoring(serverStatus === 'monitoring');
+        }
+        setCurrentStatus(serverConfig && serverStatus === 'monitoring' ? 'monitoring' : 'idle');
       } catch (error) {
         addLogEntry({ message: "Failed to fetch app status.", type: 'error' });
         setCurrentStatus("error");
       }
     }
     fetchStatus();
-  }, [addLogEntry]);
+  }, [addLogEntry]); // Removed setCurrentStatus and setIsMonitoring as direct dependencies, they are setters.
 
-  // Simulate periodic checks and file transfers if monitoring is active
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
+    let intervalId: NodeJS.Timeout | undefined;
+    let initialSetupTimeoutId: NodeJS.Timeout | undefined; 
+    let transferSuccessTimeoutId: NodeJS.Timeout | undefined;
+    let successToMonitoringTimeoutId: NodeJS.Timeout | undefined;
+
 
     if (isMonitoring && config) {
-      addLogEntry({ message: `Simulating check for new files on ${config.host}...`, type: 'info' });
-      setCurrentStatus('connecting');
+      const isAlreadyProcessing = 
+        currentStatus === 'connecting' ||
+        currentStatus === 'monitoring' ||
+        currentStatus === 'transferring' ||
+        currentStatus === 'success';
 
+      if (!isAlreadyProcessing) {
+        addLogEntry({ message: `Simulating check for new files on ${config.host}...`, type: 'info' });
+        setCurrentStatus('connecting');
+      }
+      
+      if (currentStatus === 'connecting') {
+        initialSetupTimeoutId = setTimeout(() => {
+          if (isMonitoring && config) { 
+            setCurrentStatus('monitoring');
+          }
+        }, 1000);
+      }
+      
       intervalId = setInterval(() => {
-        // Simulate different outcomes
+        const currentConfigInInterval = config; 
         const outcome = Math.random();
-        if (outcome < 0.1) { // Simulate error
-          addLogEntry({ message: `Error connecting to FTP server ${config.host}.`, type: 'error' });
+
+        if (outcome < 0.1) { 
+          addLogEntry({ message: `Error connecting to FTP server ${currentConfigInInterval.host}.`, type: 'error' });
           setCurrentStatus('error');
-          setIsMonitoring(false); // Stop monitoring on critical error simulation
+          setIsMonitoring(false); 
           toast({
             title: "FTP Connection Error",
-            description: `Could not connect to ${config.host}. Monitoring stopped.`,
+            description: `Could not connect to ${currentConfigInInterval.host}. Monitoring stopped.`,
             variant: "destructive",
           });
-        } else if (outcome < 0.3) { // Simulate no new files
-          addLogEntry({ message: `No new files found on ${config.host}.`, type: 'info' });
+        } else if (outcome < 0.3) { 
+          addLogEntry({ message: `No new files found on ${currentConfigInInterval.host}.`, type: 'info' });
           setCurrentStatus('monitoring');
-        } else { // Simulate file found and transferred
+        } else { 
           setCurrentStatus('transferring');
           const fileName = `file_${Date.now()}.zip`;
           addLogEntry({ message: `New file '${fileName}' found. Starting transfer...`, type: 'info' });
-          setTimeout(() => {
-            addLogEntry({ message: `File '${fileName}' successfully transferred to ${config.localPath}.`, type: 'success' });
+          
+          transferSuccessTimeoutId = setTimeout(() => {
+            addLogEntry({ message: `File '${fileName}' successfully transferred to ${currentConfigInInterval.localPath}.`, type: 'success' });
             setCurrentStatus('success');
-            setTimeout(() => setCurrentStatus('monitoring'), 1500); // Back to monitoring after success display
+            
+            successToMonitoringTimeoutId = setTimeout(() => {
+                // Check isMonitoring and config again before setting back to monitoring
+                // This requires access to the latest isMonitoring state.
+                // A ref for isMonitoring would be more robust here if accessed from a long-running timeout.
+                // For this simulation, if isMonitoring became false, the main interval cleanup should handle it.
+                if (isMonitoring && config) { 
+                    setCurrentStatus('monitoring');
+                }
+            }, 1500); 
+            
              toast({
               title: "File Transferred",
-              description: `${fileName} moved to ${config.localPath}.`,
+              description: `${fileName} moved to ${currentConfigInInterval.localPath}.`,
             });
-          }, 2000); // Simulate transfer time
+          }, 2000); 
         }
-      }, (config.interval || 5) * 60 * 1000); // Use configured interval, default 5 mins
-
-      // Initial check simulation
-      setTimeout(() => {
-         if(isMonitoring) setCurrentStatus('monitoring'); // Ensure status is monitoring after initial setup
-      }, 1000);
-
+      }, (config.interval || 5) * 60 * 1000);
 
     } else if (!isMonitoring && currentStatus !== 'idle' && currentStatus !== 'error') {
         setCurrentStatus('idle');
-        // This log might be redundant if toggleMonitoring already logs stopping
-        // addLogEntry({ message: "Monitoring stopped by user or due to inactivity.", type: 'info' });
     }
 
-
     return () => {
-      clearInterval(intervalId);
+      if (intervalId) clearInterval(intervalId);
+      if (initialSetupTimeoutId) clearTimeout(initialSetupTimeoutId);
+      if (transferSuccessTimeoutId) clearTimeout(transferSuccessTimeoutId);
+      if (successToMonitoringTimeoutId) clearTimeout(successToMonitoringTimeoutId);
     };
-  }, [isMonitoring, config, addLogEntry, toast, currentStatus]);
+  }, [isMonitoring, config, currentStatus, addLogEntry, toast, setCurrentStatus, setIsMonitoring]);
 
 
   return (
@@ -121,7 +147,7 @@ export default function FileFetcherPage() {
       <main className="w-full max-w-3xl space-y-8">
         <FileFetcherForm 
             onConfigChange={handleConfigChange} 
-            addLog={(logData) => addLogEntry(logData)}
+            addLog={addLogEntry} // Pass the memoized addLogEntry
             initialConfig={config || undefined}
             isCurrentlyMonitoring={isMonitoring}
             setIsCurrentlyMonitoring={setIsMonitoring}
@@ -133,7 +159,7 @@ export default function FileFetcherPage() {
             isMonitoring={isMonitoring}
         />
       </main>
-      <Toaster />
+      {/* Toaster already in layout.tsx, no need for a second one here */}
        <footer className="w-full max-w-3xl text-center text-sm text-muted-foreground mt-8">
         <p>&copy; {new Date().getFullYear()} FileFetcher App. For demonstration purposes.</p>
       </footer>
