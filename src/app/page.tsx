@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -17,7 +18,7 @@ export default function FileFetcherPage() {
 
   const addLogEntry = useCallback((newLog: Omit<LogEntry, 'id' | 'timestamp'>) => {
     setLogs((prevLogs) => [
-      { ...newLog, id: Date.now().toString(), timestamp: new Date() },
+      { ...newLog, id: crypto.randomUUID(), timestamp: new Date() },
       ...prevLogs,
     ].slice(0, 100)); // Keep last 100 logs
   }, []);
