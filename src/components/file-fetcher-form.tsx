@@ -2,7 +2,7 @@
 "use client";
 
 import type { Control } from "react-hook-form";
-import { useActionState, useEffect, useState, useTransition } from "react"; // Added useTransition
+import { useActionState, useEffect, useState, useTransition, useCallback } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { FtpConfig, LogEntry } from "@/types";
 import { submitConfiguration, toggleMonitoring, type ActionResponse } from "@/lib/actions";
-import React from "react"; // React import was already here, fine
+import React from "react";
 
 const formSchema = z.object({
   host: z.string().min(1, { message: "FTP host is required." }),
@@ -56,24 +56,27 @@ export function FileFetcherForm({
   setIsCurrentlyMonitoring 
 }: FileFetcherFormProps) {
   const [formSubmitState, formAction] = useActionState<ActionResponse | null, FormData>(submitConfiguration, null);
-  const [toggleSubmitState, _toggleAction_unused] = useActionState<ActionResponse | null, boolean>(toggleMonitoring, null);
+  // toggleMonitoring is called directly, so useActionState might not be strictly needed here for its action if not using its pending state.
+  // However, keeping it for consistency or if we want to use its pending state later.
+  const [toggleSubmitState, _toggleAction_unused] = useActionState<ActionResponse | null, boolean>(toggleMonitoring, null); 
   
   const [isConfigSubmitting, startConfigSubmitTransition] = useTransition();
-  const [isTogglingMonitor, setIsTogglingMonitor] = useState(false);
+  const [isTogglingMonitor, setIsTogglingMonitor] = useState(false); // Manual pending state for toggle button
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      host: initialConfig?.host || "",
-      port: initialConfig?.port?.toString() || "21",
-      username: initialConfig?.username || "",
-      password: initialConfig?.password || "",
-      remotePath: initialConfig?.remotePath || "/upload/",
-      localPath: initialConfig?.localPath || "/data/ftp_files/",
-      interval: initialConfig?.interval?.toString() || "5",
+      host: "", // Default to empty, will be populated by useEffect if initialConfig exists
+      port: "21",
+      username: "",
+      password: "",
+      remotePath: "/upload/",
+      localPath: "/data/ftp_files/",
+      interval: "5",
     },
   });
 
+  // Populate form when initialConfig is available or changes
   useEffect(() => {
     if (initialConfig) {
       form.reset({
@@ -85,14 +88,21 @@ export function FileFetcherForm({
         localPath: initialConfig.localPath,
         interval: initialConfig.interval.toString(),
       });
+    } else {
+      // Reset to defaults if initialConfig becomes null (e.g., config cleared)
+      form.reset({
+        host: "", port: "21", username: "", password: "",
+        remotePath: "/upload/", localPath: "/data/ftp_files/", interval: "5",
+      });
     }
   }, [initialConfig, form]);
 
+  // Handle state changes from form submission (submitConfiguration action)
   useEffect(() => {
     if (formSubmitState?.success && formSubmitState.config) {
-      onConfigChange(formSubmitState.config);
+      onConfigChange(formSubmitState.config); // Update parent page's config state
       addLog({ message: formSubmitState.message, type: 'success' });
-      setIsCurrentlyMonitoring(true); // Assuming successful config submission implies monitoring starts
+      setIsCurrentlyMonitoring(true); // Assume successful config submission implies monitoring starts (server action confirms)
     } else if (formSubmitState && !formSubmitState.success) {
       addLog({ message: formSubmitState.message, type: 'error' });
       if (formSubmitState.errorDetails) {
@@ -101,22 +111,22 @@ export function FileFetcherForm({
         });
       }
     }
-    // No longer need setIsSubmittingConfig(false) here, as isConfigSubmitting comes from useTransition
   }, [formSubmitState, onConfigChange, addLog, form, setIsCurrentlyMonitoring]);
 
-  useEffect(() => {
+  // Handle state changes from toggle monitoring (direct call, but effect on toggleSubmitState if it were used)
+  // This effect is less critical if toggleAction from useActionState isn't directly invoked by button
+   useEffect(() => {
     if (toggleSubmitState?.success) {
-        addLog({ message: toggleSubmitState.message, type: 'info' });
-        // The actual state of monitoring is now more reliably set in handleToggleMonitoring
-        // setIsCurrentlyMonitoring(toggleSubmitState.message.includes("started")); 
-        if (toggleSubmitState.config) { // If toggle action returns config, update it
+        // This log is duplicative if handleToggleMonitoring also logs.
+        // addLog({ message: toggleSubmitState.message, type: 'info' }); 
+        if (toggleSubmitState.config) { 
             onConfigChange(toggleSubmitState.config);
         }
     } else if (toggleSubmitState && !toggleSubmitState.success) {
-        addLog({ message: toggleSubmitState.message, type: 'error' });
+        // addLog({ message: toggleSubmitState.message, type: 'error' });
     }
-    setIsTogglingMonitor(false);
-  }, [toggleSubmitState, addLog, setIsCurrentlyMonitoring, onConfigChange]);
+    // setIsTogglingMonitor(false); // This is handled in handleToggleMonitoring
+  }, [toggleSubmitState, addLog, onConfigChange]);
 
 
   function onSubmit(data: FormValues) {
@@ -129,25 +139,33 @@ export function FileFetcherForm({
     });
   }
 
-  const handleToggleMonitoring = async () => {
-    if (!initialConfig && !formSubmitState?.config) {
+  const handleToggleMonitoring = useCallback(async () => {
+    // The config for toggling should be the one currently applied, which `initialConfig` represents here
+    if (!initialConfig && !form.getValues().host) { // Check if there's any config to toggle for
         addLog({ message: "Cannot toggle monitoring without an active configuration.", type: 'warning' });
         return;
     }
     setIsTogglingMonitor(true);
-    const response = await toggleMonitoring(!isCurrentlyMonitoring);
-    if (response.success) {
-        addLog({ message: response.message, type: 'info' });
-        setIsCurrentlyMonitoring(!isCurrentlyMonitoring); 
-        if (response.config) {
-            onConfigChange(response.config);
-        }
-    } else {
-        addLog({ message: response.message, type: 'error' });
+    try {
+      const response = await toggleMonitoring(!isCurrentlyMonitoring); // Call server action
+      if (response.success) {
+          addLog({ message: response.message, type: 'info' });
+          setIsCurrentlyMonitoring(!isCurrentlyMonitoring); 
+          if (response.config) { // If action returned updated config (e.g. status within config)
+              onConfigChange(response.config);
+          }
+      } else {
+          addLog({ message: response.message, type: 'error' });
+      }
+    } catch (e) {
+        addLog({message: "Error toggling monitoring.", type: 'error'});
+    } finally {
+        setIsTogglingMonitor(false);
     }
-    setIsTogglingMonitor(false);
-  };
+  }, [initialConfig, isCurrentlyMonitoring, addLog, setIsCurrentlyMonitoring, onConfigChange, form]);
 
+
+  const hasActiveConfig = !!initialConfig; // Simpler check for button disable state
 
   return (
     <Card className="w-full shadow-lg">
@@ -157,7 +175,7 @@ export function FileFetcherForm({
           FTP Configuration
         </CardTitle>
         <CardDescription>
-          Configure FTP server details, paths, and monitoring interval.
+          Configure FTP server details, paths, and monitoring interval. Applied settings control the global monitoring service.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -265,14 +283,14 @@ export function FileFetcherForm({
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <Button type="submit" className="w-full sm:w-auto" disabled={isConfigSubmitting || isTogglingMonitor}>
                 {isConfigSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Settings className="mr-2 h-4 w-4" />}
-                Apply Configuration
+                {hasActiveConfig ? "Update & Restart Monitoring" : "Apply & Start Monitoring"}
               </Button>
               <Button 
                 type="button" 
                 variant={isCurrentlyMonitoring ? "destructive" : "default"} 
                 onClick={handleToggleMonitoring}
                 className="w-full sm:w-auto"
-                disabled={isConfigSubmitting || isTogglingMonitor || (!initialConfig && !formSubmitState?.config && !currentConfigFromPage)} // Disable if no config available
+                disabled={isConfigSubmitting || isTogglingMonitor || !hasActiveConfig}
               >
                 {isTogglingMonitor ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 
                   isCurrentlyMonitoring ? <StopCircle className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />
@@ -286,13 +304,3 @@ export function FileFetcherForm({
     </Card>
   );
 }
-
-// Helper to determine if there's any config available for the toggle button
-// This is a bit of a workaround because initialConfig is a prop and formSubmitState is action state
-// A more robust solution might involve lifting config state higher or passing current page config down.
-// For now, this is an approximation.
-const currentConfigFromPage = typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem("ftpConfig") || "null")) : null;
-// Note: Using localStorage like this directly in component logic can be tricky with SSR/Next.js.
-// This is just a placeholder to illustrate the check. A better approach would be to manage config centrally.
-// For the purpose of this fix, the key part is `!initialConfig && !formSubmitState?.config` in the disabled check.
-
