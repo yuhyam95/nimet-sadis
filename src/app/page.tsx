@@ -5,9 +5,9 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { FileFetcherForm } from "@/components/file-fetcher-form";
 import { StatusDisplay } from "@/components/status-display";
 import type { FtpConfig, LogEntry, AppStatus } from "@/types";
-import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/hooks/use-toast";
 import { getAppStatusAndLogs } from "@/lib/actions"; 
+import { SidebarTrigger } from "@/components/ui/sidebar";
 
 export default function FileFetcherPage() {
   const [config, setConfig] = useState<FtpConfig | null>(null);
@@ -25,7 +25,6 @@ export default function FileFetcherPage() {
   
   const handleConfigChange = useCallback((newConfig: FtpConfig) => {
     setConfig(newConfig);
-    // Initial status will be set by the main useEffect when isMonitoring becomes true
     addLogEntry({ message: `Configuration updated for ${newConfig.host}`, type: 'info' });
   }, [addLogEntry]);
 
@@ -36,8 +35,6 @@ export default function FileFetcherPage() {
         if (serverConfig) {
           setConfig(serverConfig);
         }
-        // Only set isMonitoring based on serverStatus if there's a config,
-        // otherwise, it might conflict with user actions before config is set.
         if (serverConfig) {
             setIsMonitoring(serverStatus === 'monitoring');
         }
@@ -48,14 +45,13 @@ export default function FileFetcherPage() {
       }
     }
     fetchStatus();
-  }, [addLogEntry]); // Removed setCurrentStatus and setIsMonitoring as direct dependencies, they are setters.
+  }, [addLogEntry]);
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout | undefined;
     let initialSetupTimeoutId: NodeJS.Timeout | undefined; 
     let transferSuccessTimeoutId: NodeJS.Timeout | undefined;
     let successToMonitoringTimeoutId: NodeJS.Timeout | undefined;
-
 
     if (isMonitoring && config) {
       const isAlreadyProcessing = 
@@ -103,10 +99,6 @@ export default function FileFetcherPage() {
             setCurrentStatus('success');
             
             successToMonitoringTimeoutId = setTimeout(() => {
-                // Check isMonitoring and config again before setting back to monitoring
-                // This requires access to the latest isMonitoring state.
-                // A ref for isMonitoring would be more robust here if accessed from a long-running timeout.
-                // For this simulation, if isMonitoring became false, the main interval cleanup should handle it.
                 if (isMonitoring && config) { 
                     setCurrentStatus('monitoring');
                 }
@@ -130,24 +122,29 @@ export default function FileFetcherPage() {
       if (transferSuccessTimeoutId) clearTimeout(transferSuccessTimeoutId);
       if (successToMonitoringTimeoutId) clearTimeout(successToMonitoringTimeoutId);
     };
-  }, [isMonitoring, config, currentStatus, addLogEntry, toast, setCurrentStatus, setIsMonitoring]);
+  }, [isMonitoring, config, currentStatus, addLogEntry, toast]);
 
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-start p-4 md:p-8 space-y-8 bg-background">
-      <header className="text-center">
-        <h1 className="text-4xl font-bold text-primary tracking-tight">
-          FileFetcher
-        </h1>
-        <p className="text-muted-foreground mt-2 text-lg">
-          Automated FTP File Retrieval and Local Transfer
-        </p>
+      <header className="w-full max-w-3xl flex items-center justify-between">
+        <div className="text-center md:text-left">
+            <h1 className="text-4xl font-bold text-primary tracking-tight">
+            FileFetcher
+            </h1>
+            <p className="text-muted-foreground mt-2 text-lg">
+            Automated FTP File Retrieval and Local Transfer
+            </p>
+        </div>
+        <div className="md:hidden"> {/* Show trigger only on mobile devices */}
+            <SidebarTrigger />
+        </div>
       </header>
 
       <main className="w-full max-w-3xl space-y-8">
         <FileFetcherForm 
             onConfigChange={handleConfigChange} 
-            addLog={addLogEntry} // Pass the memoized addLogEntry
+            addLog={addLogEntry}
             initialConfig={config || undefined}
             isCurrentlyMonitoring={isMonitoring}
             setIsCurrentlyMonitoring={setIsMonitoring}
@@ -159,7 +156,6 @@ export default function FileFetcherPage() {
             isMonitoring={isMonitoring}
         />
       </main>
-      {/* Toaster already in layout.tsx, no need for a second one here */}
        <footer className="w-full max-w-3xl text-center text-sm text-muted-foreground mt-8">
         <p>&copy; {new Date().getFullYear()} FileFetcher App. For demonstration purposes.</p>
       </footer>
