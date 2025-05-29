@@ -5,11 +5,12 @@ import React, { useState, useEffect, useCallback } from "react";
 import { FetchedFilesList } from "@/components/fetched-files-list";
 import type { FtpConfig, LogEntry, AppStatus } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { getAppStatusAndLogs } from "@/lib/actions";
+import { getAppStatusAndLogs, toggleMonitoring } from "@/lib/actions";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"; // For consistency
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"; 
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, CheckCircle2, Rss, Activity, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, CheckCircle2, Rss, Activity, Loader2, StopCircle } from "lucide-react";
 
 // Minimal StatusDisplay for this page
 const MinimalStatusDisplay: React.FC<{ status: AppStatus; isMonitoring: boolean; message?: string }> = ({ status, isMonitoring, message }) => {
@@ -59,10 +60,11 @@ const MinimalStatusDisplay: React.FC<{ status: AppStatus; isMonitoring: boolean;
 export default function FtpActivityPage() {
   const [config, setConfig] = useState<FtpConfig | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [currentStatus, setCurrentStatus] = useState<AppStatus>("configuring"); // Start with configuring/loading
+  const [currentStatus, setCurrentStatus] = useState<AppStatus>("configuring");
   const [isMonitoring, setIsMonitoring] = useState<boolean>(false);
   const [fetchedFiles, setFetchedFiles] = useState<string[]>([]);
   const [statusMessage, setStatusMessage] = useState<string>("Initializing application status...");
+  const [isStopping, setIsStopping] = useState<boolean>(false);
   const { toast } = useToast();
 
   const addLogEntry = useCallback((newLog: Omit<LogEntry, 'id' | 'timestamp'>) => {
@@ -115,12 +117,9 @@ export default function FtpActivityPage() {
     let transferTimeoutId: NodeJS.Timeout | undefined;
     let successToMonitorTimeoutId: NodeJS.Timeout | undefined;
 
-    // This reflects if the simulation is in an active phase
     const isCurrentlyProcessingSimulation = ['connecting', 'monitoring', 'transferring', 'success'].includes(currentStatus);
 
     if (isMonitoring && config) {
-      // Only try to initiate connection if current status is 'idle' or 'configuring'
-      // This prevents re-triggering 'connecting' if the effect re-runs while already in a processing state.
       if (currentStatus === 'idle' || currentStatus === 'configuring') {
         addLogEntry({ message: `Monitoring active. Simulating connection to ${config.host}...`, type: 'info' });
         setCurrentStatus('connecting');
@@ -129,7 +128,7 @@ export default function FtpActivityPage() {
 
       if (currentStatus === 'connecting') {
         connectTimeoutId = setTimeout(() => {
-          if (isMonitoring && config) { // Re-check conditions inside timeout
+          if (isMonitoring && config) { 
             setCurrentStatus('monitoring');
             setStatusMessage(`Monitoring ${config.remotePath} on ${config.host}.`);
             addLogEntry({ message: `Successfully connected. Monitoring ${config.remotePath}.`, type: 'info' });
@@ -139,11 +138,9 @@ export default function FtpActivityPage() {
       
       if (currentStatus === 'monitoring') {
         intervalId = setInterval(() => {
-          // Ensure config is still valid within interval closure
           const currentConfigInInterval = config; 
-          if (!currentConfigInInterval || !isMonitoring) { // also check isMonitoring flag
-            if(intervalId) clearInterval(intervalId); // Stop interval if config lost or monitoring stopped
-            // Optionally set status to idle/error if config is lost mid-monitoring
+          if (!currentConfigInInterval || !isMonitoring) { 
+            if(intervalId) clearInterval(intervalId); 
             if (!currentConfigInInterval) {
                 setCurrentStatus('error');
                 setStatusMessage("Configuration lost during monitoring.");
@@ -154,7 +151,7 @@ export default function FtpActivityPage() {
           addLogEntry({ message: `Checking for files on ${currentConfigInInterval.host}...`, type: 'info' });
           const outcome = Math.random();
 
-          if (outcome < 0.1) { // Simulate error
+          if (outcome < 0.1) { 
             addLogEntry({ message: `Error during check on FTP server ${currentConfigInInterval.host}.`, type: 'error' });
             setCurrentStatus('error');
             setStatusMessage(`Error checking ${currentConfigInInterval.host}.`);
@@ -163,17 +160,17 @@ export default function FtpActivityPage() {
               description: `An error occurred while checking ${currentConfigInInterval.host}.`,
               variant: "destructive",
             });
-          } else if (outcome < 0.6) { // Simulate no new files
+          } else if (outcome < 0.6) { 
             addLogEntry({ message: `No new files found on ${currentConfigInInterval.host}.`, type: 'info' });
             setStatusMessage(`Last check: No new files. Monitoring ${currentConfigInInterval.remotePath}.`);
-          } else { // Simulate new file
+          } else { 
             setCurrentStatus('transferring');
             const fileName = `sim_file_${Date.now().toString().slice(-5)}_${Math.random().toString(36).substring(2, 7)}.dat`;
             addLogEntry({ message: `New file '${fileName}' detected. Simulating transfer...`, type: 'info' });
             setStatusMessage(`Transferring '${fileName}'...`);
 
             transferTimeoutId = setTimeout(() => {
-               if (isMonitoring && config) { // Re-check conditions
+               if (isMonitoring && config) { 
                 addLogEntry({ message: `File '${fileName}' successfully transferred to ${currentConfigInInterval.localPath}.`, type: 'success' });
                 addFetchedFile(fileName);
                 setCurrentStatus('success');
@@ -184,7 +181,7 @@ export default function FtpActivityPage() {
                 });
 
                 successToMonitorTimeoutId = setTimeout(() => {
-                  if (isMonitoring && config) { // Re-check conditions
+                  if (isMonitoring && config) { 
                       setCurrentStatus('monitoring');
                       setStatusMessage(`Monitoring ${config.remotePath} on ${config.host}.`);
                   }
@@ -192,19 +189,15 @@ export default function FtpActivityPage() {
               }
             }, 2500);
           }
-        }, (config.interval || 5) * 1000 * 0.5); // Reduced interval for faster simulation feedback
+        }, (config.interval || 5) * 1000 * 0.5); 
       }
     } else if (!isMonitoring && isCurrentlyProcessingSimulation) {
-        // If monitoring is stopped externally (e.g. by user action on config page)
-        // and the simulation was in an active state, reset it to idle.
         setCurrentStatus('idle');
         setStatusMessage(config ? "Monitoring paused." : "No active configuration. Please set up in Configuration page.");
     } else if (!isMonitoring && !config && currentStatus !== 'idle' && currentStatus !== 'error' && currentStatus !== 'configuring') {
-        // Catch-all to ensure idle state if no config and not monitoring
         setCurrentStatus('idle');
         setStatusMessage("No active configuration. Please set up in Configuration page.");
     }
-
 
     return () => {
       if (intervalId) clearInterval(intervalId);
@@ -212,8 +205,47 @@ export default function FtpActivityPage() {
       if (transferTimeoutId) clearTimeout(transferTimeoutId);
       if (successToMonitorTimeoutId) clearTimeout(successToMonitorTimeoutId);
     };
-  }, [isMonitoring, config, addLogEntry, toast, addFetchedFile]); // Removed currentStatus from dependencies
+  }, [isMonitoring, config, addLogEntry, toast, addFetchedFile, currentStatus]); // Added currentStatus back
 
+
+  const handleStopMonitoring = async () => {
+    if (!config) {
+      addLogEntry({ message: "Cannot stop monitoring without configuration.", type: 'warning' });
+      return;
+    }
+    setIsStopping(true);
+    addLogEntry({ message: "Attempting to stop monitoring...", type: 'info' });
+    try {
+      const response = await toggleMonitoring(false);
+      if (response.success) {
+        setIsMonitoring(false);
+        setCurrentStatus('idle');
+        setStatusMessage("Monitoring stopped by user.");
+        addLogEntry({ message: "Monitoring successfully stopped by user.", type: 'success' });
+        toast({
+          title: "Monitoring Stopped",
+          description: "The FTP monitoring service has been stopped.",
+        });
+      } else {
+        addLogEntry({ message: `Failed to stop monitoring: ${response.message}`, type: 'error' });
+        toast({
+          title: "Error Stopping Monitoring",
+          description: response.message,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+      addLogEntry({ message: `Error stopping monitoring: ${errorMessage}`, type: 'error' });
+      toast({
+        title: "Error",
+        description: `Could not stop monitoring: ${errorMessage}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsStopping(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-start p-4 md:p-8 space-y-8 bg-background">
@@ -233,6 +265,21 @@ export default function FtpActivityPage() {
 
       <main className="w-full max-w-3xl space-y-8">
         <MinimalStatusDisplay status={currentStatus} isMonitoring={isMonitoring} message={statusMessage} />
+        
+        {isMonitoring && config && (
+          <div className="flex justify-center">
+            <Button
+              onClick={handleStopMonitoring}
+              variant="destructive"
+              disabled={isStopping || !isMonitoring}
+              className="w-full sm:w-auto"
+            >
+              {isStopping ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <StopCircle className="mr-2 h-4 w-4" />}
+              Stop Monitoring
+            </Button>
+          </div>
+        )}
+
         <FetchedFilesList files={fetchedFiles} />
       </main>
        <footer className="w-full max-w-3xl text-center text-sm text-muted-foreground mt-8">
