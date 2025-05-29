@@ -1,7 +1,8 @@
+
 "use client";
 
 import type { Control } from "react-hook-form";
-import { useFormState } from "react-dom";
+import { useActionState } from "react"; // Changed from react-dom
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -41,7 +42,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 interface FileFetcherFormProps {
   onConfigChange: (config: FtpConfig) => void;
-  addLog: (log: LogEntry) => void;
+  addLog: (log: Omit<LogEntry, 'id' | 'timestamp'>) => void; // Adjusted to match page.tsx
   initialConfig?: FtpConfig;
   isCurrentlyMonitoring: boolean;
   setIsCurrentlyMonitoring: (isMonitoring: boolean) => void;
@@ -54,8 +55,15 @@ export function FileFetcherForm({
   isCurrentlyMonitoring,
   setIsCurrentlyMonitoring 
 }: FileFetcherFormProps) {
-  const [formSubmitState, formAction] = useFormState<ActionResponse | null, FormData>(submitConfiguration, null);
-  const [toggleSubmitState, toggleAction] = useFormState<ActionResponse | null, boolean>(toggleMonitoring, null);
+  const [formSubmitState, formAction] = useActionState<ActionResponse | null, FormData>(submitConfiguration, null);
+  // For toggleMonitoring, which takes a boolean, useActionState might not be the ideal hook if not submitting a form.
+  // However, to maintain consistency with the error fix and assuming a future where it might evolve, let's keep it.
+  // If toggleMonitoring was a simple async function without form state semantics, a direct call would be simpler.
+  // The second argument to useActionState (the action function) should match its signature.
+  // toggleMonitoring expects a boolean, not FormData.
+  // For now, to address the rename, we'll change useFormState to useActionState.
+  // The `handleToggleMonitoring` function already handles the direct call, so toggleAction might not be used.
+  const [toggleSubmitState, _toggleAction_unused] = useActionState<ActionResponse | null, boolean>(toggleMonitoring, null);
   const [isSubmittingConfig, setIsSubmittingConfig] = useState(false);
   const [isTogglingMonitor, setIsTogglingMonitor] = useState(false);
 
@@ -75,10 +83,10 @@ export function FileFetcherForm({
   useEffect(() => {
     if (formSubmitState?.success && formSubmitState.config) {
       onConfigChange(formSubmitState.config);
-      addLog({ id: Date.now().toString(), timestamp: new Date(), message: formSubmitState.message, type: 'success' });
+      addLog({ message: formSubmitState.message, type: 'success' });
       setIsCurrentlyMonitoring(true);
     } else if (formSubmitState && !formSubmitState.success) {
-      addLog({ id: Date.now().toString(), timestamp: new Date(), message: formSubmitState.message, type: 'error' });
+      addLog({ message: formSubmitState.message, type: 'error' });
       if (formSubmitState.errorDetails) {
         Object.entries(formSubmitState.errorDetails).forEach(([field, errors]) => {
             form.setError(field as keyof FormValues, { message: errors.join(', ') });
@@ -90,13 +98,13 @@ export function FileFetcherForm({
 
   useEffect(() => {
     if (toggleSubmitState?.success) {
-        addLog({ id: Date.now().toString(), timestamp: new Date(), message: toggleSubmitState.message, type: 'info' });
+        addLog({ message: toggleSubmitState.message, type: 'info' });
         setIsCurrentlyMonitoring(toggleSubmitState.message.includes("started"));
         if (toggleSubmitState.config) {
             onConfigChange(toggleSubmitState.config);
         }
     } else if (toggleSubmitState && !toggleSubmitState.success) {
-        addLog({ id: Date.now().toString(), timestamp: new Date(), message: toggleSubmitState.message, type: 'error' });
+        addLog({ message: toggleSubmitState.message, type: 'error' });
     }
     setIsTogglingMonitor(false);
   }, [toggleSubmitState, addLog, setIsCurrentlyMonitoring, onConfigChange]);
@@ -113,32 +121,16 @@ export function FileFetcherForm({
 
   const handleToggleMonitoring = async () => {
     setIsTogglingMonitor(true);
-    const formData = new FormData();
-    formData.append('start', (!isCurrentlyMonitoring).toString());
-    // This is a bit of a workaround for useFormState with a simple boolean
-    // For a real use case, a more direct approach might be better or a different hook.
-    // Here we essentially call toggleMonitoring with a boolean argument.
-    // We're not using FormData directly in toggleMonitoring but it's the useFormState pattern.
-    // So we pass `!isCurrentlyMonitoring` as the argument to the server action.
-    
-    // Correct way to call server action with useFormState if it expects a boolean
-    // is to have toggleAction accept that boolean, or wrap it.
-    // Since toggleMonitoring takes `start: boolean`, we need to pass it directly.
-    // The `useFormState` pattern is more for form submissions. Let's adjust.
-    // For a simple toggle, we might not need useFormState for `toggleMonitoring`.
-    // Or, we adapt it. For now, let's make it work with current hook.
-    // The server action `toggleMonitoring` will be called with the boolean directly.
-    // `formAction(formData)` implies `action(prevState, formData)`.
-    // For actions not taking FormData, it's simpler:
+    // Direct call to the server action as it doesn't rely on FormData from a form submission here.
     const response = await toggleMonitoring(!isCurrentlyMonitoring);
     if (response.success) {
-        addLog({ id: Date.now().toString(), timestamp: new Date(), message: response.message, type: 'info' });
-        setIsCurrentlyMonitoring(!isCurrentlyMonitoring);
+        addLog({ message: response.message, type: 'info' });
+        setIsCurrentlyMonitoring(!isCurrentlyMonitoring); // Update local state based on actual action
         if (response.config) {
             onConfigChange(response.config);
         }
     } else {
-        addLog({ id: Date.now().toString(), timestamp: new Date(), message: response.message, type: 'error' });
+        addLog({ message: response.message, type: 'error' });
     }
     setIsTogglingMonitor(false);
   };
@@ -267,7 +259,7 @@ export function FileFetcherForm({
                 variant={isCurrentlyMonitoring ? "destructive" : "default"} 
                 onClick={handleToggleMonitoring}
                 className="w-full sm:w-auto"
-                disabled={isSubmittingConfig || isTogglingMonitor || !formSubmitState?.config}
+                disabled={isSubmittingConfig || isTogglingMonitor || !initialConfig} // Disable if no initialConfig
               >
                 {isTogglingMonitor ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 
                   isCurrentlyMonitoring ? <StopCircle className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />
@@ -281,3 +273,4 @@ export function FileFetcherForm({
     </Card>
   );
 }
+
