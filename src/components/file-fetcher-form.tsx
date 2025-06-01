@@ -32,7 +32,7 @@ const formSchema = z.object({
   username: z.string().min(1, { message: "Username is required." }),
   password: z.string().optional(),
   remotePath: z.string().min(1, { message: "FTP remote path is required." }).refine(val => val.startsWith('/'), { message: "Remote path must start with /"}),
-  localPath: z.string().min(1, { message: "Local server path is required." }).refine(val => val.startsWith('/'), { message: "Local path must start with /"}),
+  localPath: z.string().min(1, { message: "Local server path is required." }),
   interval: z.string().refine(val => /^\d+$/.test(val) && parseInt(val, 10) >= 1, {
     message: "Interval must be at least 1 minute.",
   }),
@@ -56,27 +56,24 @@ export function FileFetcherForm({
   setIsCurrentlyMonitoring 
 }: FileFetcherFormProps) {
   const [formSubmitState, formAction] = useActionState<ActionResponse | null, FormData>(submitConfiguration, null);
-  // toggleMonitoring is called directly, so useActionState might not be strictly needed here for its action if not using its pending state.
-  // However, keeping it for consistency or if we want to use its pending state later.
-  const [toggleSubmitState, _toggleAction_unused] = useActionState<ActionResponse | null, boolean>(toggleMonitoring, null); 
+  const [_toggleSubmitState_unused, _toggleAction_unused] = useActionState<ActionResponse | null, boolean>(toggleMonitoring, null); 
   
   const [isConfigSubmitting, startConfigSubmitTransition] = useTransition();
-  const [isTogglingMonitor, setIsTogglingMonitor] = useState(false); // Manual pending state for toggle button
+  const [isTogglingMonitor, setIsTogglingMonitor] = useState(false); 
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      host: "", // Default to empty, will be populated by useEffect if initialConfig exists
+      host: "", 
       port: "21",
       username: "",
       password: "",
       remotePath: "/upload/",
-      localPath: "/data/ftp_files/",
+      localPath: "ftp_downloads", // Default to a relative path within the project
       interval: "5",
     },
   });
 
-  // Populate form when initialConfig is available or changes
   useEffect(() => {
     if (initialConfig) {
       form.reset({
@@ -89,20 +86,18 @@ export function FileFetcherForm({
         interval: initialConfig.interval.toString(),
       });
     } else {
-      // Reset to defaults if initialConfig becomes null (e.g., config cleared)
       form.reset({
         host: "", port: "21", username: "", password: "",
-        remotePath: "/upload/", localPath: "/data/ftp_files/", interval: "5",
+        remotePath: "/upload/", localPath: "ftp_downloads", interval: "5",
       });
     }
   }, [initialConfig, form]);
 
-  // Handle state changes from form submission (submitConfiguration action)
   useEffect(() => {
     if (formSubmitState?.success && formSubmitState.config) {
-      onConfigChange(formSubmitState.config); // Update parent page's config state
+      onConfigChange(formSubmitState.config); 
       addLog({ message: formSubmitState.message, type: 'success' });
-      setIsCurrentlyMonitoring(true); // Assume successful config submission implies monitoring starts (server action confirms)
+      setIsCurrentlyMonitoring(true); 
     } else if (formSubmitState && !formSubmitState.success) {
       addLog({ message: formSubmitState.message, type: 'error' });
       if (formSubmitState.errorDetails) {
@@ -112,22 +107,6 @@ export function FileFetcherForm({
       }
     }
   }, [formSubmitState, onConfigChange, addLog, form, setIsCurrentlyMonitoring]);
-
-  // Handle state changes from toggle monitoring (direct call, but effect on toggleSubmitState if it were used)
-  // This effect is less critical if toggleAction from useActionState isn't directly invoked by button
-   useEffect(() => {
-    if (toggleSubmitState?.success) {
-        // This log is duplicative if handleToggleMonitoring also logs.
-        // addLog({ message: toggleSubmitState.message, type: 'info' }); 
-        if (toggleSubmitState.config) { 
-            onConfigChange(toggleSubmitState.config);
-        }
-    } else if (toggleSubmitState && !toggleSubmitState.success) {
-        // addLog({ message: toggleSubmitState.message, type: 'error' });
-    }
-    // setIsTogglingMonitor(false); // This is handled in handleToggleMonitoring
-  }, [toggleSubmitState, addLog, onConfigChange]);
-
 
   function onSubmit(data: FormValues) {
     const formData = new FormData();
@@ -140,18 +119,17 @@ export function FileFetcherForm({
   }
 
   const handleToggleMonitoring = useCallback(async () => {
-    // The config for toggling should be the one currently applied, which `initialConfig` represents here
-    if (!initialConfig && !form.getValues().host) { // Check if there's any config to toggle for
+    if (!initialConfig && !form.getValues().host) { 
         addLog({ message: "Cannot toggle monitoring without an active configuration.", type: 'warning' });
         return;
     }
     setIsTogglingMonitor(true);
     try {
-      const response = await toggleMonitoring(!isCurrentlyMonitoring); // Call server action
+      const response = await toggleMonitoring(!isCurrentlyMonitoring); 
       if (response.success) {
           addLog({ message: response.message, type: 'info' });
           setIsCurrentlyMonitoring(!isCurrentlyMonitoring); 
-          if (response.config) { // If action returned updated config (e.g. status within config)
+          if (response.config) { 
               onConfigChange(response.config);
           }
       } else {
@@ -165,7 +143,7 @@ export function FileFetcherForm({
   }, [initialConfig, isCurrentlyMonitoring, addLog, setIsCurrentlyMonitoring, onConfigChange, form]);
 
 
-  const hasActiveConfig = !!initialConfig; // Simpler check for button disable state
+  const hasActiveConfig = !!(initialConfig || (formSubmitState?.success && formSubmitState.config));
 
   return (
     <Card className="w-full shadow-lg">
@@ -259,9 +237,9 @@ export function FileFetcherForm({
                 <FormItem>
                   <FormLabel>Local Server Path</FormLabel>
                   <FormControl>
-                    <Input className="font-mono" placeholder="/path/to/local_storage/" {...field} />
+                    <Input className="font-mono" placeholder="ftp_downloads" {...field} />
                   </FormControl>
-                  <FormDescription>The folder on your local server to save files (e.g., /var/www/html/ftp_downloads/). Must start with /.</FormDescription>
+                  <FormDescription>Path to save files. Relative paths (e.g., 'ftp_downloads') are inside the project. Absolute paths (e.g., '/var/data') also work.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

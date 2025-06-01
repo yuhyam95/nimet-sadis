@@ -12,7 +12,7 @@ const ftpConfigSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().optional(),
   remotePath: z.string().min(1, "Remote path is required").refine(val => val.startsWith('/'), { message: "Remote path must start with /"}),
-  localPath: z.string().min(1, "Local path is required").refine(val => val.startsWith('/'), { message: "Local path must start with /"}),
+  localPath: z.string().min(1, "Local path is required"), // Removed .refine(val => val.startsWith('/'))
   interval: z.coerce.number().int().min(1, "Interval must be at least 1 minute"),
 });
 
@@ -93,16 +93,19 @@ export async function saveSimulatedFile(
     return { success: false, message: "Local path or filename missing for saving file." };
   }
   try {
-    // Ensure the directory exists
-    await fs.mkdir(configLocalPath, { recursive: true });
+    // Relative paths are resolved against process.cwd() by default, which is usually the project root.
+    // For absolute paths, fs.mkdir and path.join will use them as is.
+    const targetDirectory = path.resolve(configLocalPath); // Ensure it's an absolute path for consistency
     
-    const fullPath = path.join(configLocalPath, fileName);
+    await fs.mkdir(targetDirectory, { recursive: true });
     
-    // Create an empty file
-    await fs.writeFile(fullPath, '', 'utf-8');
+    const fullPath = path.join(targetDirectory, fileName);
     
-    console.log(`Simulated file saved: ${fullPath}`);
-    return { success: true, message: `Simulated file '${fileName}' saved to ${configLocalPath}.`, fullPath };
+    const fileContent = `Simulated content for file: ${fileName}\nTimestamp: ${new Date().toISOString()}\nThis is a simulated file downloaded by FileFetcher App.`;
+    await fs.writeFile(fullPath, fileContent, 'utf-8');
+    
+    console.log(`Simulated file saved with content: ${fullPath}`);
+    return { success: true, message: `Simulated file '${fileName}' saved with content to ${targetDirectory}.`, fullPath };
   } catch (error: any) {
     console.error(`Failed to save simulated file '${fileName}' to ${configLocalPath}:`, error);
     return { 
