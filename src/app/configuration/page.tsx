@@ -21,18 +21,16 @@ export default function ConfigurationPage() {
       { ...newLog, id: crypto.randomUUID(), timestamp: new Date() },
       ...prevLogs,
     ].slice(0, 10));
-  }, []); // setFormLogs is stable
+  }, []); 
 
   const handleConfigChange = useCallback((newConfig: FtpConfig) => {
     setConfig(newConfig);
-    // The form submission itself handles logging and starting monitoring via server action
-  }, []); // setConfig is stable
+  }, []); 
 
   const stableSetIsMonitoring = useCallback((monitoringState: boolean) => {
     setIsMonitoring(monitoringState);
-  }, []); // setIsMonitoring is stable
+  }, []); 
 
-  // Fetch initial config and monitoring status
   useEffect(() => {
     async function fetchInitialData() {
       setPageStatus("loading");
@@ -103,7 +101,7 @@ export default function ConfigurationPage() {
                 Configuration Events
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-sm">
+            <CardContent className="text-sm max-h-60 overflow-y-auto">
               <ul className="space-y-1">
                 {formLogs.map(log => (
                   <li key={log.id} className={`flex items-center ${log.type === 'error' ? 'text-destructive' : log.type === 'success' ? 'text-green-600' : ''}`}>

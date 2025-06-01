@@ -1,15 +1,18 @@
+
 "use server";
 
 import type { FtpConfig } from "@/types";
 import { z } from "zod";
+import fs from 'fs/promises';
+import path from 'path';
 
 const ftpConfigSchema = z.object({
   host: z.string().min(1, "Host is required"),
   port: z.coerce.number().int().positive("Port must be a positive integer"),
   username: z.string().min(1, "Username is required"),
   password: z.string().optional(),
-  remotePath: z.string().min(1, "Remote path is required"),
-  localPath: z.string().min(1, "Local path is required"),
+  remotePath: z.string().min(1, "Remote path is required").refine(val => val.startsWith('/'), { message: "Remote path must start with /"}),
+  localPath: z.string().min(1, "Local path is required").refine(val => val.startsWith('/'), { message: "Local path must start with /"}),
   interval: z.coerce.number().int().min(1, "Interval must be at least 1 minute"),
 });
 
@@ -47,9 +50,6 @@ export async function submitConfiguration(
 
   console.log("Configuration submitted:", newConfig);
 
-  // In a real app, you would save this configuration and start the FTP monitoring service.
-  // For now, we'll just return a success message and the config.
-
   return {
     success: true,
     message: "Configuration applied. Monitoring started (simulated).",
@@ -76,13 +76,38 @@ export async function toggleMonitoring(start: boolean): Promise<ActionResponse> 
   };
 }
 
-// Simulate fetching status and logs
 export async function getAppStatusAndLogs(): Promise<{ status: 'monitoring' | 'idle' | 'error', logs: [], config: FtpConfig | null }> {
-    // This is a placeholder. In a real app, this would query the actual monitoring service.
-    await new Promise(resolve => setTimeout(resolve, 200)); // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 200)); 
     return {
         status: isMonitoringActive ? 'monitoring' : 'idle',
-        logs: [], // Placeholder for logs
+        logs: [], 
         config: currentConfig,
     };
+}
+
+export async function saveSimulatedFile(
+  configLocalPath: string, 
+  fileName: string
+): Promise<{ success: boolean; message: string; fullPath?: string }> {
+  if (!configLocalPath || !fileName) {
+    return { success: false, message: "Local path or filename missing for saving file." };
+  }
+  try {
+    // Ensure the directory exists
+    await fs.mkdir(configLocalPath, { recursive: true });
+    
+    const fullPath = path.join(configLocalPath, fileName);
+    
+    // Create an empty file
+    await fs.writeFile(fullPath, '', 'utf-8');
+    
+    console.log(`Simulated file saved: ${fullPath}`);
+    return { success: true, message: `Simulated file '${fileName}' saved to ${configLocalPath}.`, fullPath };
+  } catch (error: any) {
+    console.error(`Failed to save simulated file '${fileName}' to ${configLocalPath}:`, error);
+    return { 
+      success: false, 
+      message: `Failed to save simulated file '${fileName}' to ${configLocalPath}. Error: ${error.message}. Check server permissions and path validity.` 
+    };
+  }
 }
