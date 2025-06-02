@@ -7,7 +7,7 @@ import type { FtpConfig, LogEntry, AppStatus } from "@/types";
 import { getAppStatusAndLogs } from "@/lib/actions";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle, Info } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 
 export default function ConfigurationPage() {
@@ -93,26 +93,6 @@ export default function ConfigurationPage() {
           />
         )}
         
-        {formLogs.length > 0 && (
-          <Card className="w-full shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center text-lg">
-                <Info className="mr-2 h-5 w-5 text-blue-500" />
-                Configuration Events
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm max-h-60 overflow-y-auto">
-              <ul className="space-y-1">
-                {formLogs.map(log => (
-                  <li key={log.id} className={`flex items-center ${log.type === 'error' ? 'text-destructive' : log.type === 'success' ? 'text-green-600' : ''}`}>
-                    <span className="text-xs text-muted-foreground mr-2">{new Date(log.timestamp).toLocaleTimeString()}:</span>
-                    {log.message}
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        )}
       </main>
       <footer className="w-full max-w-3xl text-center text-sm text-muted-foreground mt-8">
         <p>&copy; {new Date().getFullYear()} NiMet-SADIS-Ingest. Configuration Management.</p>
