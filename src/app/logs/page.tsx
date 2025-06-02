@@ -12,46 +12,48 @@ import { RefreshCw } from "lucide-react";
 export default function LogsPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [currentStatus, setCurrentStatus] = useState<AppStatus>("idle");
-  const [config, setConfig] = useState<FtpConfig | null>(null);
-  const [isMonitoringSim, setIsMonitoringSim] = useState<boolean>(false); // Renamed to avoid conflict
+  const [config, setConfig] = useState<FtpConfig | null>(null); // This FtpConfig might need to become AppConfig if we show multi-folder config here
+  const [isMonitoringSim, setIsMonitoringSim] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  const addLogEntry = useCallback((newLog: Omit<LogEntry, 'id' | 'timestamp'>) => {
+  // This client-side log adding is for UI events on THIS page, not for FTP logs from server.
+  const addUiLogEntry = useCallback((newLog: Omit<LogEntry, 'id' | 'timestamp'>) => {
     setLogs((prevLogs) => [
       { ...newLog, id: crypto.randomUUID(), timestamp: new Date() },
       ...prevLogs,
-    ].slice(0, 100));
+    ].slice(0, 100)); // Keep client-side logs also capped for this page display
   }, []);
 
   const fetchLogPageData = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Logs from getAppStatusAndLogs is currently always [], so we primarily get config and status
       const { status, logs: serverLogs, config: serverConfig } = await getAppStatusAndLogs();
       
-      // For this page, we'll start with a fresh log set or one reflecting current action
-      // setLogs(serverLogs); 
+      setLogs(serverLogs); // serverLogs are now the FTP logs, newest first if addFtpLog prepends
       
       if (serverConfig) {
-        setConfig(serverConfig);
+        // @ts-ignore // Temporarily allow FtpConfig, ideally StatusDisplay adapts or config type here changes
+        setConfig(serverConfig.server); // Show main server config for now, or update StatusDisplay for AppConfig
+      } else {
+        setConfig(null);
       }
-      setCurrentStatus(status); // Reflect general app status from server
-      setIsMonitoringSim(status === 'monitoring'); // Update based on actual server status
+      setCurrentStatus(status); 
+      setIsMonitoringSim(status === 'monitoring'); 
 
-      addLogEntry({ message: "Refreshed logs and status from server.", type: 'info' });
+      addUiLogEntry({ message: "Refreshed FTP logs and status from server.", type: 'info' });
 
     } catch (error) {
-      addLogEntry({ message: "Failed to fetch log page data.", type: 'error' });
+      addUiLogEntry({ message: "Failed to fetch log page data.", type: 'error' });
       setCurrentStatus("error");
     } finally {
       setIsLoading(false);
     }
-  }, [addLogEntry]); // addLogEntry is stable
+  }, [addUiLogEntry]); 
 
   useEffect(() => {
-    addLogEntry({ message: "Navigated to Logs page.", type: 'info' });
+    addUiLogEntry({ message: "Navigated to FTP Logs page.", type: 'info' });
     fetchLogPageData();
-  }, [fetchLogPageData, addLogEntry]); // Initial fetch and setup
+  }, [fetchLogPageData, addUiLogEntry]); 
 
 
   return (
@@ -59,16 +61,16 @@ export default function LogsPage() {
       <header className="w-full max-w-3xl flex items-center justify-between">
         <div className="text-center md:text-left">
           <h1 className="text-4xl font-bold text-primary tracking-tight">
-            Application Logs & Status
+            FTP Operation Logs & Status
           </h1>
           <p className="text-muted-foreground mt-2 text-lg">
-            Review events and the overall application status.
+            Review FTP server interactions and the overall application status.
           </p>
         </div>
         <div className="flex items-center gap-2">
             <Button onClick={fetchLogPageData} variant="outline" size="sm" disabled={isLoading}>
                 <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-                Refresh
+                Refresh Logs
             </Button>
             <div className="md:hidden">
                 <SidebarTrigger />
@@ -78,19 +80,21 @@ export default function LogsPage() {
 
       <main className="w-full max-w-3xl space-y-8">
         {isLoading && !logs.length ? (
-            <p className="text-center text-muted-foreground">Loading status and logs...</p>
+            <p className="text-center text-muted-foreground">Loading status and FTP logs...</p>
         ) : (
             <StatusDisplay
-            config={config}
-            logs={logs} // Shows logs generated on this page + initial server log messages
+            config={config} // This might need to be AppConfig or StatusDisplay adjusted
+            logs={logs} 
             status={currentStatus}
-            isMonitoring={isMonitoringSim} // Use the state derived from getAppStatusAndLogs
+            isMonitoring={isMonitoringSim} 
             />
         )}
       </main>
       <footer className="w-full max-w-3xl text-center text-sm text-muted-foreground mt-8">
-        <p>&copy; {new Date().getFullYear()} NiMet-SADIS-Ingest. Logs Viewer.</p>
+        <p>&copy; {new Date().getFullYear()} NiMet-SADIS-Ingest. FTP Logs Viewer.</p>
       </footer>
     </div>
   );
 }
+
+    
