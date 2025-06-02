@@ -98,6 +98,7 @@ export default function FtpActivityPage() {
 
   useEffect(() => {
     const activeIntervals: NodeJS.Timeout[] = [];
+    const activeTimeouts: NodeJS.Timeout[] = []; // To clear inner timeouts as well
 
     if (isMonitoring && appConfig && appConfig.folders && appConfig.folders.length > 0) {
       setCurrentStatus('connecting'); 
@@ -117,18 +118,18 @@ export default function FtpActivityPage() {
             }
 
             const outcome = Math.random();
-            // setCurrentStatus('transferring'); // Individual folder activity might be too noisy for overall status here
-
+            
             if (outcome < 0.1) { 
               setStatusMessage(`Error checking ${folder.name} on ${appConfig.server.host}.`);
             } else if (outcome < 0.6) { 
               // To avoid too many logs, only update status if it's not already generic monitoring
-              if (currentStatus !== 'monitoring') {
-                setStatusMessage(`Last check for ${folder.name}: No new files. Monitoring...`);
+              // and not currently in a transfer/success/error state from another folder.
+              if (currentStatus === 'monitoring') { // Check against the REACT state, not a stale closure value
+                 setStatusMessage(`Last check for ${folder.name}: No new files. Monitoring...`);
               }
             } else { 
               const fileName = `sim_${folder.name.replace(/\s+/g, '_')}_${Date.now().toString().slice(-5)}_${Math.random().toString(36).substring(2, 7)}.dat`;
-              setCurrentStatus('transferring'); // Set to transferring when a file is found for this folder
+              setCurrentStatus('transferring'); 
               setStatusMessage(`Transferring '${fileName}' from ${folder.name}...`);
 
               const transferTimeoutId = setTimeout(async () => {
@@ -146,22 +147,22 @@ export default function FtpActivityPage() {
                 }
                 
                 const successToMonitorTimeoutId = setTimeout(() => {
-                  if (isMonitoring && appConfig) {
+                  if (isMonitoring && appConfig) { // Check again before reverting
                       setCurrentStatus('monitoring'); 
                       setStatusMessage(`Monitoring ${appConfig.folders.length} folder(s) on ${appConfig.server.host}.`);
                   }
                 }, 2000);
-                activeIntervals.push(successToMonitorTimeoutId);
+                activeTimeouts.push(successToMonitorTimeoutId);
 
               }, 1500); 
-              activeIntervals.push(transferTimeoutId);
+              activeTimeouts.push(transferTimeoutId);
             }
-          }, (folder.interval || 5) * 1000 * 0.7); 
+          }, (folder.interval || 5) * 1000 * 0.7); // Shortened interval for testing
           activeIntervals.push(intervalId);
         });
       }, 1500); 
 
-      activeIntervals.push(initialConnectionTimeout);
+      activeTimeouts.push(initialConnectionTimeout);
 
     } else if (!isMonitoring) {
       setCurrentStatus('idle');
@@ -173,9 +174,9 @@ export default function FtpActivityPage() {
 
     return () => {
       activeIntervals.forEach(clearInterval);
-      activeIntervals.forEach(clearTimeout); // Clear any pending timeouts as well
+      activeTimeouts.forEach(clearTimeout); // Clear all timeouts
     };
-  }, [isMonitoring, appConfig, addFetchedFileEntry, currentStatus]);
+  }, [isMonitoring, appConfig, addFetchedFileEntry]); // Removed currentStatus
 
 
   return (
@@ -206,3 +207,4 @@ export default function FtpActivityPage() {
     </div>
   );
 }
+
