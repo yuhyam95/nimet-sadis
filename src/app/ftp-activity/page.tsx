@@ -98,7 +98,7 @@ export default function FtpActivityPage() {
 
   useEffect(() => {
     const activeIntervals: NodeJS.Timeout[] = [];
-    const activeTimeouts: NodeJS.Timeout[] = []; // To clear inner timeouts as well
+    const activeTimeouts: NodeJS.Timeout[] = []; 
 
     if (isMonitoring && appConfig && appConfig.folders && appConfig.folders.length > 0) {
       setCurrentStatus('connecting'); 
@@ -119,14 +119,26 @@ export default function FtpActivityPage() {
 
             const outcome = Math.random();
             
+            // Use a functional update for setCurrentStatus if the new status depends on the previous one
+            // to avoid stale closures if currentStatus were needed here for logic.
+            // However, for setStatusMessage, we can set it directly.
+
             if (outcome < 0.1) { 
-              setStatusMessage(`Error checking ${folder.name} on ${appConfig.server.host}.`);
+              // Avoid setting status to 'error' if already in a 'transferring' or 'success' state from another folder quickly
+              setCurrentStatus(prevStatus => {
+                if (prevStatus !== 'transferring' && prevStatus !== 'success') {
+                  setStatusMessage(`Error checking ${folder.name} on ${appConfig.server.host}.`);
+                  return 'error'; // Or a more specific error status if needed
+                }
+                return prevStatus; // Keep current status if it's more critical
+              });
             } else if (outcome < 0.6) { 
-              // To avoid too many logs, only update status if it's not already generic monitoring
-              // and not currently in a transfer/success/error state from another folder.
-              if (currentStatus === 'monitoring') { // Check against the REACT state, not a stale closure value
-                 setStatusMessage(`Last check for ${folder.name}: No new files. Monitoring...`);
-              }
+              setCurrentStatus(prevStatus => {
+                 if (prevStatus === 'monitoring') { // Only update message if generally monitoring
+                    setStatusMessage(`Last check for ${folder.name}: No new files. Monitoring...`);
+                 }
+                 return prevStatus; // Status remains 'monitoring' or whatever it was
+              });
             } else { 
               const fileName = `sim_${folder.name.replace(/\s+/g, '_')}_${Date.now().toString().slice(-5)}_${Math.random().toString(36).substring(2, 7)}.dat`;
               setCurrentStatus('transferring'); 
@@ -147,7 +159,7 @@ export default function FtpActivityPage() {
                 }
                 
                 const successToMonitorTimeoutId = setTimeout(() => {
-                  if (isMonitoring && appConfig) { // Check again before reverting
+                  if (isMonitoring && appConfig) { 
                       setCurrentStatus('monitoring'); 
                       setStatusMessage(`Monitoring ${appConfig.folders.length} folder(s) on ${appConfig.server.host}.`);
                   }
@@ -157,7 +169,7 @@ export default function FtpActivityPage() {
               }, 1500); 
               activeTimeouts.push(transferTimeoutId);
             }
-          }, (folder.interval || 5) * 1000 * 0.7); // Shortened interval for testing
+          }, (folder.interval || 5) * 1000 * 0.7); 
           activeIntervals.push(intervalId);
         });
       }, 1500); 
@@ -174,9 +186,9 @@ export default function FtpActivityPage() {
 
     return () => {
       activeIntervals.forEach(clearInterval);
-      activeTimeouts.forEach(clearTimeout); // Clear all timeouts
+      activeTimeouts.forEach(clearTimeout); 
     };
-  }, [isMonitoring, appConfig, addFetchedFileEntry]); // Removed currentStatus
+  }, [isMonitoring, appConfig, addFetchedFileEntry]);
 
 
   return (
