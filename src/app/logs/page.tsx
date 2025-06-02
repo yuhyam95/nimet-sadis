@@ -89,7 +89,7 @@ export default function LogsPage() {
         )}
       </main>
       <footer className="w-full max-w-3xl text-center text-sm text-muted-foreground mt-8">
-        <p>&copy; {new Date().getFullYear()} FileFetcher App. Logs Viewer.</p>
+        <p>&copy; {new Date().getFullYear()} NiMet-SADIS-Ingest. Logs Viewer.</p>
       </footer>
     </div>
   );

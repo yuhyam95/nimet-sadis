@@ -115,7 +115,7 @@ export default function ConfigurationPage() {
         )}
       </main>
       <footer className="w-full max-w-3xl text-center text-sm text-muted-foreground mt-8">
-        <p>&copy; {new Date().getFullYear()} FileFetcher App. Configuration Management.</p>
+        <p>&copy; {new Date().getFullYear()} NiMet-SADIS-Ingest. Configuration Management.</p>
       </footer>
     </div>
   );

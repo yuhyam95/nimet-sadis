@@ -12,7 +12,7 @@ const ftpConfigSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().optional(),
   remotePath: z.string().min(1, "Remote path is required").refine(val => val.startsWith('/'), { message: "Remote path must start with /"}),
-  localPath: z.string().min(1, "Local path is required"), // Removed .refine(val => val.startsWith('/'))
+  localPath: z.string().min(1, "Local path is required"),
   interval: z.coerce.number().int().min(1, "Interval must be at least 1 minute"),
 });
 
@@ -101,7 +101,7 @@ export async function saveSimulatedFile(
     
     const fullPath = path.join(targetDirectory, fileName);
     
-    const fileContent = `Simulated content for file: ${fileName}\nTimestamp: ${new Date().toISOString()}\nThis is a simulated file downloaded by FileFetcher App.`;
+    const fileContent = `Simulated content for file: ${fileName}\nTimestamp: ${new Date().toISOString()}\nThis is a simulated file downloaded by NiMet-SADIS-Ingest.`;
     await fs.writeFile(fullPath, fileContent, 'utf-8');
     
     console.log(`Simulated file saved with content: ${fullPath}`);

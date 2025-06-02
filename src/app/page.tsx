@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { getAppStatusAndLogs } from "@/lib/actions"; 
+import { getAppStatusAndLogs } from "@/lib/actions";
 import type { FtpConfig } from "@/types";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -35,10 +35,10 @@ export default function HomePage() {
       <header className="w-full max-w-4xl flex items-center justify-between">
         <div className="text-center md:text-left">
             <h1 className="text-4xl font-bold text-primary tracking-tight">
-            Welcome to FileFetcher
+            Welcome to NiMet-SADIS-Ingest
             </h1>
             <p className="text-muted-foreground mt-2 text-lg">
-            Automated FTP file retrieval and local transfer. Select an option below or use the sidebar.
+            Automated SADIS FTP file ingestion and local transfer. Select an option below or use the sidebar.
             </p>
         </div>
         <div className="md:hidden">
@@ -112,7 +112,7 @@ export default function HomePage() {
         )}
       </main>
        <footer className="w-full max-w-4xl text-center text-sm text-muted-foreground mt-8">
-        <p>&copy; {new Date().getFullYear()} FileFetcher App. Dashboard.</p>
+        <p>&copy; {new Date().getFullYear()} NiMet-SADIS-Ingest. Dashboard.</p>
       </footer>
     </div>
   );
