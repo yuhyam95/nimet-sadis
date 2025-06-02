@@ -1,3 +1,4 @@
+
 "use server";
 
 import type { AppConfig, FtpServerDetails, MonitoredFolderConfig, FetchedFileEntry, LogEntry as AppLogEntry, FetchFtpFolderResponse as ServerFetchResponse } from "@/types";
@@ -52,17 +53,6 @@ export interface ActionResponse {
   errorDetails?: Record<string, any>;
 }
 
-// Renamed from FetchFtpFolderResponse in types to avoid conflict here.
-// This is the type for the server action's return.
-// export interface FetchFtpFolderResponse {
-//     success: boolean;
-//     message: string;
-//     folderName: string;
-//     processedFiles: { name: string; status: 'simulated_save_success' | 'simulated_save_failed' | 'download_success' | 'download_failed'; error?: string }[];
-//     error?: string;
-// }
-
-
 let isMonitoringActive = false;
 let currentAppConfig: AppConfig | null = null;
 
@@ -102,7 +92,7 @@ export async function submitConfiguration(
   const validationResult = appConfigSchema.safeParse(combinedConfig);
 
   if (!validationResult.success) {
-    addFtpLog("Configuration validation failed.", 'error');
+    addFtpLog("Configuration validation failed: " + JSON.stringify(validationResult.error.flatten().fieldErrors), 'error');
     return {
       success: false,
       message: "Validation failed. Please check your inputs.",
@@ -152,22 +142,20 @@ export async function toggleMonitoring(start: boolean): Promise<ActionResponse> 
 }
 
 export async function getAppStatusAndLogs(): Promise<{ status: 'monitoring' | 'idle' | 'error' | 'configuring' | 'connecting' | 'transferring' | 'success', logs: AppLogEntry[], config: AppConfig | null }> {
-    // Determine a more granular status if possible
     let currentOverallStatus: 'monitoring' | 'idle' | 'error' | 'configuring' | 'connecting' | 'transferring' | 'success' = 'idle';
     if (isMonitoringActive) {
-        currentOverallStatus = 'monitoring'; // Default to monitoring if active
+        currentOverallStatus = 'monitoring'; 
     }
     if (!currentAppConfig && isMonitoringActive) {
-        currentOverallStatus = 'configuring'; // Misconfigured state?
+        currentOverallStatus = 'configuring'; 
     } else if (!currentAppConfig) {
         currentOverallStatus = 'idle';
     }
-    // More complex status logic could be added here if actions update a global server status variable
-
-    await new Promise(resolve => setTimeout(resolve, 50)); // Simulate small delay
+    
+    await new Promise(resolve => setTimeout(resolve, 50)); 
     return {
         status: currentOverallStatus,
-        logs: [...ftpOperationLogs], // Return a copy of the server logs
+        logs: [...ftpOperationLogs], 
         config: currentAppConfig,
     };
 }
@@ -177,7 +165,7 @@ async function saveLocalFile(
   rootLocalPath: string,
   targetSubFolder: string,
   fileName: string,
-  content: string | Buffer // Can now be string or Buffer for real files
+  content: string | Buffer 
 ): Promise<{ success: boolean; message: string; fullPath?: string }> {
   if (!rootLocalPath || !targetSubFolder || !fileName) {
     const missingMsg = "Root local path, target subfolder, or filename missing for saving file.";
@@ -191,7 +179,6 @@ async function saveLocalFile(
     await fs.mkdir(fullDirectoryPath, { recursive: true });
     
     const fullFilePath = path.join(fullDirectoryPath, fileName);
-    // If content is string, it's utf-8. If it's Buffer, write as is.
     await fs.writeFile(fullFilePath, content, typeof content === 'string' ? 'utf-8' : undefined);
     
     const successMsg = `File '${fileName}' saved to ${fullDirectoryPath}.`;
@@ -211,35 +198,32 @@ export async function fetchAndProcessFtpFolder(
     serverDetails: FtpServerDetails,
     folderConfig: MonitoredFolderConfig
 ): Promise<ServerFetchResponse> {
-    const client = new Client();
-    client.ftp.verbose = true; // Enable verbose logging for basic-ftp for now
+    const client = new Client(15000); // 15 second timeout for FTP operations
+    client.ftp.verbose = true; 
     const processedFiles: ServerFetchResponse['processedFiles'] = [];
     const logPrefix = `FTP Folder [${folderConfig.name}]:`;
 
     let cleanHost = serverDetails.host;
-    // Remove protocol if present (e.g., ftp://, http://, https://)
     cleanHost = cleanHost.replace(/^(ftp:\/\/|http:\/\/|https:\/\/)/i, '');
-    // Remove any path or trailing slashes after the hostname
     const slashIndex = cleanHost.indexOf('/');
     if (slashIndex !== -1) {
         cleanHost = cleanHost.substring(0, slashIndex);
     }
 
-
     try {
-        addFtpLog(`${logPrefix} Attempting to connect to ${cleanHost}:${serverDetails.port} (original host input: ${serverDetails.host})`, 'info');
+        addFtpLog(`${logPrefix} Attempting to connect to ${cleanHost}:${serverDetails.port}`, 'info');
         await client.access({
             host: cleanHost,
             port: serverDetails.port,
             user: serverDetails.username,
             password: serverDetails.password,
-            secure: false // For plain FTP. Change to true or 'implicit' for FTPS if needed.
+            secure: false // For plain FTP. Use true for explicit FTPS (AUTH TLS), or 'implicit' for implicit FTPS.
         });
         addFtpLog(`${logPrefix} Connected to ${cleanHost}. Navigating to remote path: ${folderConfig.remotePath}`, 'info');
         
         await client.cd(folderConfig.remotePath);
         const ftpFiles: FileInfo[] = await client.list();
-        addFtpLog(`${logPrefix} Found ${ftpFiles.length} files/folders in ${folderConfig.remotePath}.`, 'info');
+        addFtpLog(`${logPrefix} Found ${ftpFiles.length} items in ${folderConfig.remotePath}.`, 'info');
 
         if (ftpFiles.length === 0) {
             client.close();
@@ -251,24 +235,39 @@ export async function fetchAndProcessFtpFolder(
             };
         }
 
+        let filesDownloadedCount = 0;
         for (const fileInfo of ftpFiles) {
-            if (fileInfo.type === 1) { // Type 1 is usually a file
+            if (fileInfo.type === 1) { // Type 1 is File
                 const fileName = fileInfo.name;
-                // Placeholder content for now, using the real filename
-                const placeholderContent = `Placeholder for REAL file: ${fileName}\nFrom FTP folder: ${folderConfig.remotePath}\nListed at: ${new Date().toISOString()}\nThis placeholder confirms the file was listed on the FTP server. Actual content download is the next step.`;
-                
-                const saveResult = await saveLocalFile(serverDetails.localPath, folderConfig.name, fileName, placeholderContent);
-                if (saveResult.success) {
-                    processedFiles.push({ name: fileName, status: 'simulated_save_success' }); // Using 'simulated_save_success' as content is still placeholder
-                    addFtpLog(`${logPrefix} Placeholder for file '${fileName}' saved successfully to local path.`, 'success');
-                } else {
-                    processedFiles.push({ name: fileName, status: 'simulated_save_failed', error: saveResult.message });
-                    addFtpLog(`${logPrefix} Failed to save placeholder for file '${fileName}': ${saveResult.message}`, 'error');
+                try {
+                    addFtpLog(`${logPrefix} Attempting to download actual file: ${fileName} (${fileInfo.size} bytes)`, 'info');
+                    const buffer = await client.downloadToBuffer(fileName); 
+                    addFtpLog(`${logPrefix} Successfully downloaded ${fileName} to buffer (${buffer.length} bytes).`, 'info');
+
+                    const saveResult = await saveLocalFile(serverDetails.localPath, folderConfig.name, fileName, buffer);
+                    if (saveResult.success) {
+                        processedFiles.push({ name: fileName, status: 'download_success' });
+                        addFtpLog(`${logPrefix} File '${fileName}' (actual content) saved successfully to ${saveResult.fullPath}.`, 'success');
+                        filesDownloadedCount++;
+                    } else {
+                        processedFiles.push({ name: fileName, status: 'download_failed', error: saveResult.message });
+                        addFtpLog(`${logPrefix} Failed to save actual file '${fileName}': ${saveResult.message}`, 'error');
+                    }
+                } catch (downloadError: any) {
+                    const downloadErrorMsg = `${logPrefix} Failed to download file '${fileName}': ${downloadError.message}`;
+                    addFtpLog(downloadErrorMsg, 'error');
+                    processedFiles.push({ name: fileName, status: 'download_failed', error: downloadError.message });
                 }
+            } else if (fileInfo.type === 2) { // Type 2 is Directory
+                 addFtpLog(`${logPrefix} Skipping item '${fileInfo.name}', as it is a directory.`, 'info');
+                 processedFiles.push({ name: fileInfo.name, status: 'skipped_isDirectory' });
+            } else {
+                 addFtpLog(`${logPrefix} Skipping item '${fileInfo.name}' (type: ${fileInfo.type}), not a regular file or directory.`, 'warning');
+                 processedFiles.push({ name: fileInfo.name, status: 'skipped_unknown_type' });
             }
         }
-        const finalMessage = `${logPrefix} Listed ${ftpFiles.length} items. Processed ${processedFiles.length} files (as placeholders).`;
-        addFtpLog(finalMessage, processedFiles.some(f => f.status === 'simulated_save_failed') ? 'warning' : 'success');
+        const finalMessage = `${logPrefix} Processed ${ftpFiles.length} items. Successfully downloaded and saved ${filesDownloadedCount} actual files.`;
+        addFtpLog(finalMessage, filesDownloadedCount > 0 || ftpFiles.length === 0 ? 'success' : 'warning');
         client.close();
         return {
             success: true,
@@ -278,7 +277,7 @@ export async function fetchAndProcessFtpFolder(
         };
 
     } catch (err: any) {
-        const errorMsg = `${logPrefix} Error processing FTP folder ${folderConfig.remotePath}: ${err.message} (connecting to ${cleanHost})`;
+        const errorMsg = `${logPrefix} Error processing FTP folder ${folderConfig.remotePath}: ${err.message} (connecting to ${cleanHost}, code: ${err.code || 'N/A'})`;
         addFtpLog(errorMsg, 'error');
         if (!client.closed) {
             client.close();
@@ -287,15 +286,13 @@ export async function fetchAndProcessFtpFolder(
             success: false,
             folderName: folderConfig.name,
             message: errorMsg,
-            processedFiles, // Include any files processed before the error
+            processedFiles, 
             error: err.message
         };
     } finally {
-        // Ensure client is closed, even if an error occurred before explicit close
         if (!client.closed) {
             addFtpLog(`${logPrefix} Ensuring FTP connection is closed in finally block.`, 'info');
-            await client.close();
+            await client.close(); // Ensure closure
         }
     }
 }
-    

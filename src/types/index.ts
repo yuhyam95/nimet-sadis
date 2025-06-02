@@ -40,6 +40,10 @@ export interface FetchFtpFolderResponse {
     success: boolean;
     message: string;
     folderName: string;
-    processedFiles: { name: string; status: 'simulated_save_success' | 'simulated_save_failed'; error?: string }[];
+    processedFiles: { 
+        name: string; 
+        status: 'download_success' | 'download_failed' | 'skipped_isDirectory' | 'skipped_unknown_type'; 
+        error?: string 
+    }[];
     error?: string; // General error for the folder processing (e.g., connection failed)
 }
