@@ -15,9 +15,9 @@ export function AppSidebarNav() {
 
   const menuItems = [
     { href: '/', label: 'FTP', icon: Network, tooltip: 'FTP Activity & Fetched Files' },
-    { href: '/configuration', label: 'Configuration', icon: Settings, tooltip: 'FTP Configuration' },
     { href: '/api-placeholder', label: 'API', icon: Code, tooltip: 'API Settings (Placeholder)', disabled: true },
     { href: '/logs', label: 'Logs', icon: FileText, tooltip: 'View Logs' },
+    { href: '/configuration', label: 'Configuration', icon: Settings, tooltip: 'FTP Configuration' },
   ];
 
   return (
