@@ -1,15 +1,14 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback, useTransition } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { FetchedFilesList } from "@/components/fetched-files-list";
 import type { AppConfig, LogEntry, AppStatus, MonitoredFolderConfig, FetchedFileEntry } from "@/types";
-import { getAppStatusAndLogs, toggleMonitoring, saveSimulatedFile } from "@/lib/actions";
+import { getAppStatusAndLogs, saveSimulatedFile } from "@/lib/actions";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, CheckCircle2, Rss, Activity, Loader2 as InitialLoader, StopCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlertCircle, CheckCircle2, Rss, Activity, Loader2 as InitialLoader } from "lucide-react";
 
 const MinimalStatusDisplay: React.FC<{ status: AppStatus; isMonitoring: boolean; message?: string }> = ({ status, isMonitoring, message }) => {
   let badgeVariant: "default" | "secondary" | "destructive" | "outline" = "secondary";
@@ -61,9 +60,6 @@ export default function FtpActivityPage() {
   const [isMonitoring, setIsMonitoring] = useState<boolean>(false);
   const [fetchedFiles, setFetchedFiles] = useState<FetchedFileEntry[]>([]);
   const [statusMessage, setStatusMessage] = useState<string>("Initializing application status...");
-
-  const [isStopping, setIsStopping] = useState(false);
-  const [_isPendingToggle, startToggleTransition] = useTransition();
 
   const addFetchedFileEntry = useCallback((folderName: string, fileName: string) => {
     setFetchedFiles((prevFiles) => {
@@ -182,30 +178,6 @@ export default function FtpActivityPage() {
   }, [isMonitoring, appConfig, addFetchedFileEntry, currentStatus]);
 
 
-  const handleStopMonitoring = () => {
-    if (!appConfig) {
-      console.warn("Cannot stop monitoring, no configuration active.");
-      return;
-    }
-    setIsStopping(true);
-    startToggleTransition(async () => {
-      try {
-        const response = await toggleMonitoring(false);
-        if (response.success) {
-          setIsMonitoring(false);
-        } else {
-          setStatusMessage(`Failed to stop monitoring: ${response.message}`);
-          console.error(`Failed to stop monitoring: ${response.message}`);
-        }
-      } catch (error) {
-        setStatusMessage("An unexpected error occurred while stopping monitoring.");
-        console.error("Error when trying to stop monitoring:", error);
-      } finally {
-        setIsStopping(false);
-      }
-    });
-  };
-
   return (
     <div className="min-h-screen flex flex-col items-center justify-start p-4 md:p-8 space-y-8 bg-background">
       <header className="w-full max-w-3xl flex items-center justify-between">
@@ -224,18 +196,6 @@ export default function FtpActivityPage() {
 
       <main className="w-full max-w-3xl space-y-8">
         <MinimalStatusDisplay status={currentStatus} isMonitoring={isMonitoring} message={statusMessage} />
-
-        {isMonitoring && appConfig && (
-          <Button
-            onClick={handleStopMonitoring}
-            variant="destructive"
-            className="w-full sm:w-auto"
-            disabled={isStopping || _isPendingToggle}
-          >
-            {isStopping || _isPendingToggle ? <InitialLoader className="mr-2 h-4 w-4 animate-spin" /> : <StopCircle className="mr-2 h-4 w-4" />}
-            Stop Monitoring
-          </Button>
-        )}
 
         <FetchedFilesList files={fetchedFiles} />
 
