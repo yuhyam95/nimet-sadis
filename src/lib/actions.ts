@@ -181,7 +181,7 @@ async function saveLocalFile(
   rootLocalPath: string,
   targetSubFolder: string,
   fileName: string,
-  content: Buffer // Changed from string | Buffer to Buffer for FTP content
+  content: Buffer
 ): Promise<{ success: boolean; message: string; fullPath?: string }> {
   if (!rootLocalPath || !targetSubFolder || !fileName) {
     const missingMsg = "Root local path, target subfolder, or filename missing for saving file.";
@@ -195,7 +195,7 @@ async function saveLocalFile(
     await fs.mkdir(fullDirectoryPath, { recursive: true });
     
     const fullFilePath = path.join(fullDirectoryPath, fileName);
-    await fs.writeFile(fullFilePath, content); // No encoding needed for Buffer
+    await fs.writeFile(fullFilePath, content);
     
     const successMsg = `File '${fileName}' saved to ${fullDirectoryPath}.`;
     return { success: true, message: successMsg, fullPath: fullFilePath };
@@ -214,7 +214,7 @@ export async function fetchAndProcessFtpFolder(
     serverDetails: FtpServerDetails,
     folderConfig: MonitoredFolderConfig
 ): Promise<ServerFetchResponse> {
-    const client = new Client(15000); // 15 second timeout for FTP operations
+    const client = new Client(15000); 
     client.ftp.verbose = true; 
     const processedFiles: ServerFetchResponse['processedFiles'] = [];
     const logPrefix = `FTP Folder [${folderConfig.name}]:`;
@@ -233,7 +233,7 @@ export async function fetchAndProcessFtpFolder(
             port: serverDetails.port,
             user: serverDetails.username,
             password: serverDetails.password,
-            secure: false // For plain FTP. Use true for explicit FTPS (AUTH TLS), or 'implicit' for implicit FTPS.
+            secure: false 
         });
         addFtpLog(`${logPrefix} Connected to ${cleanHost}. Navigating to remote path: ${folderConfig.remotePath}`, 'info');
         
@@ -253,7 +253,7 @@ export async function fetchAndProcessFtpFolder(
 
         let filesDownloadedCount = 0;
         for (const fileInfo of ftpFiles) {
-            if (fileInfo.type === 1) { // Type 1 is File
+            if (fileInfo.type === 1) { 
                 const fileName = fileInfo.name;
                 try {
                     addFtpLog(`${logPrefix} Attempting to download actual file: ${fileName} (${fileInfo.size} bytes)`, 'info');
@@ -266,7 +266,7 @@ export async function fetchAndProcessFtpFolder(
 
                     const saveResult = await saveLocalFile(serverDetails.localPath, folderConfig.name, fileName, buffer);
                     if (saveResult.success) {
-                        processedFiles.push({ name: fileName, status: 'download_success' });
+                        processedFiles.push({ name: fileName, status: 'save_success' });
                         addFtpLog(`${logPrefix} File '${fileName}' (actual content) saved successfully to ${saveResult.fullPath}.`, 'success');
                         filesDownloadedCount++;
                     } else {
@@ -274,11 +274,18 @@ export async function fetchAndProcessFtpFolder(
                         addFtpLog(`${logPrefix} Failed to save actual file '${fileName}': ${saveResult.message}`, 'error');
                     }
                 } catch (downloadError: any) {
-                    const downloadErrorMsg = `${logPrefix} Failed to download file '${fileName}': ${downloadError.message}`;
-                    addFtpLog(downloadErrorMsg, 'error');
-                    processedFiles.push({ name: fileName, status: 'download_failed', error: downloadError.message });
+                    let errMsg = downloadError.message || "Unknown download error";
+                    if (downloadError.code) {
+                        errMsg += ` (code: ${downloadError.code})`;
+                    }
+                    // For more verbose logging, you can stringify the whole error, but be cautious with large objects
+                    // const fullErrorString = JSON.stringify(downloadError, Object.getOwnPropertyNames(downloadError));
+                    // const detailedErrorMsg = `${logPrefix} Failed to download file '${fileName}'. Error: ${errMsg}. Full Details: ${fullErrorString}`;
+                    const detailedErrorMsg = `${logPrefix} Failed to download file '${fileName}'. Error: ${errMsg}.`;
+                    addFtpLog(detailedErrorMsg, 'error');
+                    processedFiles.push({ name: fileName, status: 'download_failed', error: errMsg });
                 }
-            } else if (fileInfo.type === 2) { // Type 2 is Directory
+            } else if (fileInfo.type === 2) { 
                  addFtpLog(`${logPrefix} Skipping item '${fileInfo.name}', as it is a directory.`, 'info');
                  processedFiles.push({ name: fileInfo.name, status: 'skipped_isDirectory' });
             } else {
@@ -312,10 +319,7 @@ export async function fetchAndProcessFtpFolder(
     } finally {
         if (!client.closed) {
             addFtpLog(`${logPrefix} Ensuring FTP connection is closed in finally block.`, 'info');
-            await client.close(); // Ensure closure
+            await client.close(); 
         }
     }
 }
-
-
-    
