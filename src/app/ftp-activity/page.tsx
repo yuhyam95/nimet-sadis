@@ -89,7 +89,7 @@ export default function FtpActivityPage() {
     async function fetchInitialStatusAndConfig() {
       setCurrentStatus("configuring");
       setStatusMessage("Initializing application state...");
-      addLogEntry({ message: "Fetching initial app status and configuration...", type: 'info' });
+      // addLogEntry({ message: "Fetching initial app status and configuration...", type: 'info' }); // Log internal to this page, maybe not needed if section is removed
       try {
         const { status: serverStatus, config: serverConfig } = await getAppStatusAndLogs();
         if (serverConfig) {
@@ -97,20 +97,21 @@ export default function FtpActivityPage() {
           setIsMonitoring(serverStatus === 'monitoring');
           setCurrentStatus(serverStatus === 'monitoring' ? 'monitoring' : 'idle'); 
           setStatusMessage(serverStatus === 'monitoring' ? "Monitoring active." : "Idle. Start monitoring from Configuration page.");
-          addLogEntry({ message: `Initial status: ${serverStatus}, Config loaded.`, type: 'info' });
+          // addLogEntry({ message: `Initial status: ${serverStatus}, Config loaded.`, type: 'info' });
         } else {
           setConfig(null);
           setIsMonitoring(false);
           setCurrentStatus('idle');
           setStatusMessage("No active configuration. Please set up in Configuration page.");
-          addLogEntry({ message: "No active configuration found.", type: 'warning' });
+          // addLogEntry({ message: "No active configuration found.", type: 'warning' });
         }
       } catch (error) {
-        addLogEntry({ message: "Failed to fetch initial app status.", type: 'error' });
+        // addLogEntry({ message: "Failed to fetch initial app status.", type: 'error' });
+        console.error("Failed to fetch initial app status for FTP Activity Page:", error);
         setCurrentStatus("error");
         setIsMonitoring(false);
         setConfig(null);
-        setStatusMessage("Error fetching status. Please check logs.");
+        setStatusMessage("Error fetching status. Please check server logs or console.");
       }
     }
     fetchInitialStatusAndConfig();
@@ -126,9 +127,8 @@ export default function FtpActivityPage() {
 
     if (isMonitoring && config) {
       if ((currentStatus === 'idle' || currentStatus === 'configuring') && !isCurrentlyProcessingSimulation) {
-         // Check if config is present before logging to avoid error messages for valid states
         if(config.host) {
-            addLogEntry({ message: `Starting monitoring for ${config.host}. Simulating connection...`, type: 'info' });
+            // addLogEntry({ message: `Starting monitoring for ${config.host}. Simulating connection...`, type: 'info' });
         }
         setCurrentStatus('connecting');
         setStatusMessage(config.host ? `Connecting to ${config.host}...` : 'Preparing to connect...');
@@ -139,7 +139,7 @@ export default function FtpActivityPage() {
           if (isMonitoring && config) { 
             setCurrentStatus('monitoring');
             setStatusMessage(`Monitoring ${config.remotePath} on ${config.host}.`);
-            addLogEntry({ message: `Successfully connected. Monitoring ${config.remotePath}.`, type: 'info' });
+            // addLogEntry({ message: `Successfully connected. Monitoring ${config.remotePath}.`, type: 'info' });
           }
         }, 1500); 
       }
@@ -152,34 +152,35 @@ export default function FtpActivityPage() {
             if (!currentConfigInInterval) {
                 setCurrentStatus('error');
                 setStatusMessage("Configuration lost during monitoring.");
-                addLogEntry({ message: "Configuration was lost. Monitoring stopped.", type: 'error' });
+                // addLogEntry({ message: "Configuration was lost. Monitoring stopped.", type: 'error' });
             }
             return;
           }
 
-          addLogEntry({ message: `Checking for files on ${currentConfigInInterval.host}...`, type: 'info' });
+          // addLogEntry({ message: `Checking for files on ${currentConfigInInterval.host}...`, type: 'info' });
           const outcome = Math.random();
 
           if (outcome < 0.1) { 
-            addLogEntry({ message: `Error during check on ${currentConfigInInterval.host}.`, type: 'error' });
+            // addLogEntry({ message: `Error during check on ${currentConfigInInterval.host}.`, type: 'error' });
             setCurrentStatus('error');
             setStatusMessage(`Error checking ${currentConfigInInterval.host}.`);
           } else if (outcome < 0.6) { 
-            addLogEntry({ message: `No new files found.`, type: 'info' });
+            // addLogEntry({ message: `No new files found.`, type: 'info' });
             setStatusMessage(`Last check: No new files. Monitoring ${currentConfigInInterval.remotePath}.`);
           } else { 
             setCurrentStatus('transferring');
             const fileName = `sim_file_${Date.now().toString().slice(-5)}_${Math.random().toString(36).substring(2, 7)}.dat`;
-            addLogEntry({ message: `New file '${fileName}' detected. Simulating transfer...`, type: 'info' });
+            // addLogEntry({ message: `New file '${fileName}' detected. Simulating transfer...`, type: 'info' });
             setStatusMessage(`Transferring '${fileName}'...`);
 
             transferTimeoutId = setTimeout(async () => { 
                if (isMonitoring && config) { 
                 const saveResult = await saveSimulatedFile(config.localPath, fileName);
                 if (saveResult.success) {
-                  addLogEntry({ message: `File '${fileName}' successfully transferred to ${config.localPath} and saved.`, type: 'success' });
+                  // addLogEntry({ message: `File '${fileName}' successfully transferred to ${config.localPath} and saved.`, type: 'success' });
                 } else {
-                  addLogEntry({ message: `File '${fileName}' transferred (simulated) but failed to save locally: ${saveResult.message}`, type: 'warning' });
+                  // addLogEntry({ message: `File '${fileName}' transferred (simulated) but failed to save locally: ${saveResult.message}`, type: 'warning' });
+                  console.warn(`File '${fileName}' transferred (simulated) but failed to save locally: ${saveResult.message}`);
                 }
                 
                 addFetchedFile(fileName);
@@ -212,12 +213,13 @@ export default function FtpActivityPage() {
       if (transferTimeoutId) clearTimeout(transferTimeoutId);
       if (successToMonitorTimeoutId) clearTimeout(successToMonitorTimeoutId);
     };
-  }, [isMonitoring, config, addLogEntry, addFetchedFile, currentStatus]); 
+  }, [isMonitoring, config, addLogEntry, addFetchedFile, currentStatus, setStatusMessage]); // Added setStatusMessage
 
 
   const handleStopMonitoring = () => {
     if (!config) {
-      addLogEntry({ message: "Cannot stop monitoring, no configuration active.", type: 'warning' });
+      // addLogEntry({ message: "Cannot stop monitoring, no configuration active.", type: 'warning' });
+      console.warn("Cannot stop monitoring, no configuration active.");
       return;
     }
     setIsStopping(true);
@@ -228,14 +230,16 @@ export default function FtpActivityPage() {
           setIsMonitoring(false);
           setCurrentStatus('idle');
           setStatusMessage("Monitoring stopped by user.");
-          addLogEntry({ message: "User stopped monitoring.", type: 'info' });
+          // addLogEntry({ message: "User stopped monitoring.", type: 'info' });
         } else {
-          addLogEntry({ message: `Failed to stop monitoring: ${response.message}`, type: 'error' });
+          // addLogEntry({ message: `Failed to stop monitoring: ${response.message}`, type: 'error' });
           setStatusMessage(`Failed to stop monitoring: ${response.message}`);
+          console.error(`Failed to stop monitoring: ${response.message}`);
         }
       } catch (error) {
-        addLogEntry({ message: "Error when trying to stop monitoring.", type: 'error' });
+        // addLogEntry({ message: "Error when trying to stop monitoring.", type: 'error' });
         setStatusMessage("An unexpected error occurred while stopping monitoring.");
+        console.error("Error when trying to stop monitoring:", error);
       } finally {
         setIsStopping(false);
       }
@@ -273,41 +277,11 @@ export default function FtpActivityPage() {
           </Button>
         )}
         
-        {!config && currentStatus !== 'configuring' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>No Configuration Active</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="mb-4">FTP monitoring requires an active configuration. Please go to the Configuration page to set up your FTP details.</p>
-              <Link href="/configuration" passHref>
-                <Button>Go to Configuration</Button>
-              </Link>
-            </CardContent>
-          </Card>
-        )}
+        {/* Removed the "No Configuration Active" card section */}
 
         <FetchedFilesList files={fetchedFiles} />
         
-        {logs.length > 0 && (
-          <Card className="w-full shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center text-lg">
-                <Activity className="mr-2 h-5 w-5 text-blue-500" /> Recent Activity
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm max-h-60 overflow-y-auto">
-              <ul className="space-y-1">
-                {logs.map(log => (
-                  <li key={log.id} className={`flex items-center ${log.type === 'error' ? 'text-destructive' : log.type === 'success' ? 'text-green-600' : log.type === 'warning' ? 'text-yellow-600' : ''}`}>
-                    <span className="text-xs text-muted-foreground mr-2">{new Date(log.timestamp).toLocaleTimeString()}:</span>
-                    {log.message}
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        )}
+        {/* Removed the "Recent Activity" logs card section */}
       </main>
        <footer className="w-full max-w-3xl text-center text-sm text-muted-foreground mt-8">
         <p>&copy; {new Date().getFullYear()} FileFetcher App. FTP Activity.</p>
@@ -315,3 +289,4 @@ export default function FtpActivityPage() {
     </div>
   );
 }
+
