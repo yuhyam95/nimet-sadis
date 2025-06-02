@@ -30,7 +30,7 @@ export type AppStatus = 'idle' | 'configuring' | 'monitoring' | 'error' | 'conne
 
 // This type represents individual entries in the fetched files list on the client
 export interface FetchedFileEntry {
-  folderName: string;
+  folderName: string; // The name of the MonitoredFolderConfig
   fileName: string;
   timestamp: Date;
 }
