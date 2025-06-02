@@ -8,13 +8,14 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from '@/components/ui/sidebar';
-import { Network, Code, Settings, FileText } from 'lucide-react';
+import { Network, Code, Settings, FileText, Home } from 'lucide-react';
 
 export function AppSidebarNav() {
   const pathname = usePathname();
 
   const menuItems = [
-    { href: '/', label: 'FTP', icon: Network, tooltip: 'FTP Activity & Fetched Files' },
+    { href: '/', label: 'Home', icon: Home, tooltip: 'Go to Homepage' },
+    { href: '/ftp-activity', label: 'FTP', icon: Network, tooltip: 'FTP Activity & Fetched Files' }, // Assuming / was config, maybe new home is just /, and FTP activity is another page
     { href: '/api-placeholder', label: 'API', icon: Code, tooltip: 'API Settings (Placeholder)', disabled: true },
     { href: '/logs', label: 'Logs', icon: FileText, tooltip: 'View Logs' },
     { href: '/configuration', label: 'Configuration', icon: Settings, tooltip: 'FTP Configuration' },
@@ -23,7 +24,7 @@ export function AppSidebarNav() {
   return (
     <SidebarMenu>
       {menuItems.map((item) => (
-        <SidebarMenuItem key={item.href}>
+        <SidebarMenuItem key={item.label}> {/* Changed key to item.label as hrefs can be duplicated if not careful */}
           {item.disabled ? (
             <SidebarMenuButton tooltip={item.tooltip} disabled>
               <item.icon />
@@ -34,7 +35,7 @@ export function AppSidebarNav() {
               <SidebarMenuButton
                 asChild
                 tooltip={item.tooltip}
-                isActive={pathname === item.href || (item.href === '/' && pathname.startsWith('/?'))} // Handle query params for root
+                isActive={pathname === item.href || (item.href === '/' && pathname.startsWith('/?'))} 
               >
                 <a> {/* This <a> is important for asChild with next/link legacyBehavior */}
                   <item.icon />
@@ -48,3 +49,4 @@ export function AppSidebarNav() {
     </SidebarMenu>
   );
 }
+
