@@ -1,11 +1,12 @@
 
 "use server";
 
-import type { AppConfig, FtpServerDetails, MonitoredFolderConfig, FetchedFileEntry, LogEntry as AppLogEntry, FetchFtpFolderResponse as ServerFetchResponse } from "@/types";
+import type { AppConfig, FtpServerDetails, MonitoredFolderConfig, LogEntry as AppLogEntry, FetchFtpFolderResponse as ServerFetchResponse } from "@/types";
 import { z } from "zod";
 import fs from 'fs/promises';
 import path from 'path';
 import { Client, FileInfo } from 'basic-ftp';
+import { Writable } from 'stream'; // Import Writable from stream
 
 // Server-side log store for FTP operations
 const ftpOperationLogs: AppLogEntry[] = [];
@@ -23,6 +24,21 @@ function addFtpLog(message: string, type: AppLogEntry['type']) {
   if (ftpOperationLogs.length > MAX_FTP_LOGS) {
     ftpOperationLogs.length = MAX_FTP_LOGS; // Trim to max size
   }
+}
+
+// Helper class to collect stream data into a buffer
+class BufferCollector extends Writable {
+    private chunks: Buffer[] = [];
+    constructor(options?: any) {
+        super(options);
+    }
+    _write(chunk: any, encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
+        this.chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding));
+        callback();
+    }
+    getBuffer(): Buffer {
+        return Buffer.concat(this.chunks);
+    }
 }
 
 
@@ -165,7 +181,7 @@ async function saveLocalFile(
   rootLocalPath: string,
   targetSubFolder: string,
   fileName: string,
-  content: string | Buffer 
+  content: Buffer // Changed from string | Buffer to Buffer for FTP content
 ): Promise<{ success: boolean; message: string; fullPath?: string }> {
   if (!rootLocalPath || !targetSubFolder || !fileName) {
     const missingMsg = "Root local path, target subfolder, or filename missing for saving file.";
@@ -179,7 +195,7 @@ async function saveLocalFile(
     await fs.mkdir(fullDirectoryPath, { recursive: true });
     
     const fullFilePath = path.join(fullDirectoryPath, fileName);
-    await fs.writeFile(fullFilePath, content, typeof content === 'string' ? 'utf-8' : undefined);
+    await fs.writeFile(fullFilePath, content); // No encoding needed for Buffer
     
     const successMsg = `File '${fileName}' saved to ${fullDirectoryPath}.`;
     return { success: true, message: successMsg, fullPath: fullFilePath };
@@ -241,7 +257,11 @@ export async function fetchAndProcessFtpFolder(
                 const fileName = fileInfo.name;
                 try {
                     addFtpLog(`${logPrefix} Attempting to download actual file: ${fileName} (${fileInfo.size} bytes)`, 'info');
-                    const buffer = await client.downloadToBuffer(fileName); 
+                    
+                    const bufferCollector = new BufferCollector();
+                    await client.downloadTo(bufferCollector, fileName);
+                    const buffer = bufferCollector.getBuffer();
+                                        
                     addFtpLog(`${logPrefix} Successfully downloaded ${fileName} to buffer (${buffer.length} bytes).`, 'info');
 
                     const saveResult = await saveLocalFile(serverDetails.localPath, folderConfig.name, fileName, buffer);
@@ -250,7 +270,7 @@ export async function fetchAndProcessFtpFolder(
                         addFtpLog(`${logPrefix} File '${fileName}' (actual content) saved successfully to ${saveResult.fullPath}.`, 'success');
                         filesDownloadedCount++;
                     } else {
-                        processedFiles.push({ name: fileName, status: 'download_failed', error: saveResult.message });
+                        processedFiles.push({ name: fileName, status: 'save_failed', error: saveResult.message });
                         addFtpLog(`${logPrefix} Failed to save actual file '${fileName}': ${saveResult.message}`, 'error');
                     }
                 } catch (downloadError: any) {
@@ -296,3 +316,6 @@ export async function fetchAndProcessFtpFolder(
         }
     }
 }
+
+
+    
