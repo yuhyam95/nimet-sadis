@@ -4,11 +4,11 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { FetchedFilesList } from "@/components/fetched-files-list";
 import type { AppConfig, LogEntry, AppStatus, MonitoredFolderConfig, FetchedFileEntry } from "@/types";
-import { getAppStatusAndLogs, saveSimulatedFile } from "@/lib/actions";
+import { getAppStatusAndLogs, fetchAndProcessFtpFolder, type FetchFtpFolderResponse } from "@/lib/actions";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, CheckCircle2, Rss, Activity, Loader2 as InitialLoader } from "lucide-react";
+import { AlertCircle, CheckCircle2, Rss, Activity, Loader2 as InitialLoader, AlertTriangle } from "lucide-react";
 
 const MinimalStatusDisplay: React.FC<{ status: AppStatus; isMonitoring: boolean; message?: string }> = ({ status, isMonitoring, message }) => {
   let badgeVariant: "default" | "secondary" | "destructive" | "outline" = "secondary";
@@ -19,18 +19,18 @@ const MinimalStatusDisplay: React.FC<{ status: AppStatus; isMonitoring: boolean;
     badgeVariant = "outline";
     badgeText = "Initializing...";
     IconComponent = InitialLoader;
-  } else if (isMonitoring) {
+  } else if (isMonitoring) { // Base on explicit isMonitoring prop
     switch (status) {
-      case 'monitoring': badgeVariant = "default"; badgeText = "Monitoring"; IconComponent = Rss; break;
-      case 'connecting': badgeVariant = "outline"; badgeText = "Connecting..."; IconComponent = Activity; break;
-      case 'transferring': badgeVariant = "outline"; badgeText = "Transferring..."; IconComponent = Activity; break;
-      case 'success': badgeVariant = "default"; badgeText = "Transfer Success"; IconComponent = CheckCircle2; break; // Generic success
-      case 'error': badgeVariant = "destructive"; badgeText = "Error"; IconComponent = AlertCircle; break;
-      default: badgeText = "Standby"; IconComponent = Rss; break;
+      case 'monitoring': badgeVariant = "default"; badgeText = "Monitoring Active"; IconComponent = Rss; break;
+      case 'connecting': badgeVariant = "outline"; badgeText = "Connecting to FTP..."; IconComponent = Activity; break;
+      case 'transferring': badgeVariant = "outline"; badgeText = "Processing Folders..."; IconComponent = Activity; break;
+      case 'success': badgeVariant = "default"; badgeText = "Folder Processed"; IconComponent = CheckCircle2; break;
+      case 'error': badgeVariant = "destructive"; badgeText = "Folder Error"; IconComponent = AlertCircle; break;
+      default: badgeText = "Standby"; IconComponent = Rss; break; // Default for monitoring true but no specific sub-status
     }
-  } else if (status === 'error') {
-    badgeVariant = "destructive"; badgeText = "Error"; IconComponent = AlertCircle;
-  } else {
+  } else if (status === 'error' && !isMonitoring) { // General error when not monitoring
+    badgeVariant = "destructive"; badgeText = "System Error"; IconComponent = AlertTriangle;
+  } else { // Not monitoring, no error
     badgeText = "Idle";
     IconComponent = Activity;
   }
@@ -56,39 +56,39 @@ const MinimalStatusDisplay: React.FC<{ status: AppStatus; isMonitoring: boolean;
 
 export default function FtpActivityPage() {
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
-  const [currentStatus, setCurrentStatus] = useState<AppStatus>("configuring");
-  const [isMonitoring, setIsMonitoring] = useState<boolean>(false);
+  const [currentOverallStatus, setCurrentOverallStatus] = useState<AppStatus>("configuring");
+  const [isGloballyMonitoring, setIsGloballyMonitoring] = useState<boolean>(false);
   const [fetchedFiles, setFetchedFiles] = useState<FetchedFileEntry[]>([]);
   const [statusMessage, setStatusMessage] = useState<string>("Initializing application status...");
 
-  const addFetchedFileEntry = useCallback((folderName: string, fileName: string) => {
+  const addFetchedFileEntry = useCallback((folderName: string, fileName: string, timestamp: Date = new Date()) => {
     setFetchedFiles((prevFiles) => {
-      const newEntry: FetchedFileEntry = { folderName, fileName, timestamp: new Date() };
-      return [newEntry, ...prevFiles].slice(0, 50); // Keep last 50 files
+      const newEntry: FetchedFileEntry = { folderName, fileName, timestamp };
+      return [newEntry, ...prevFiles].slice(0, 100); 
     });
   }, []);
 
   useEffect(() => {
     async function fetchInitialStatusAndConfig() {
-      setCurrentStatus("configuring");
+      setCurrentOverallStatus("configuring");
       setStatusMessage("Initializing application state...");
       try {
-        const { status: serverStatus, config: serverConfig } = await getAppStatusAndLogs();
+        const { status: serverOverallStatus, config: serverConfig } = await getAppStatusAndLogs();
         if (serverConfig) {
           setAppConfig(serverConfig);
-          setIsMonitoring(serverStatus === 'monitoring');
-          setCurrentStatus(serverStatus === 'monitoring' ? 'monitoring' : 'idle');
-          setStatusMessage(serverStatus === 'monitoring' ? `Monitoring active for ${serverConfig.folders.length} folder(s).` : "Idle. Start monitoring from Configuration page.");
+          setIsGloballyMonitoring(serverOverallStatus === 'monitoring');
+          setCurrentOverallStatus(serverOverallStatus === 'monitoring' ? 'monitoring' : 'idle');
+          setStatusMessage(serverOverallStatus === 'monitoring' ? `Monitoring active for ${serverConfig.folders.length} folder(s). Ready to poll.` : "Idle. Monitoring is not active. Check Configuration.");
         } else {
           setAppConfig(null);
-          setIsMonitoring(false);
-          setCurrentStatus('idle');
+          setIsGloballyMonitoring(false);
+          setCurrentOverallStatus('idle');
           setStatusMessage("No active configuration. Please set up in Configuration page.");
         }
       } catch (error) {
         console.error("Failed to fetch initial app status for FTP Activity Page:", error);
-        setCurrentStatus("error");
-        setIsMonitoring(false);
+        setCurrentOverallStatus("error");
+        setIsGloballyMonitoring(false);
         setAppConfig(null);
         setStatusMessage("Error fetching status. Please check server logs or console.");
       }
@@ -98,97 +98,69 @@ export default function FtpActivityPage() {
 
   useEffect(() => {
     const activeIntervals: NodeJS.Timeout[] = [];
-    const activeTimeouts: NodeJS.Timeout[] = []; 
+  
+    if (isGloballyMonitoring && appConfig && appConfig.server && appConfig.folders && appConfig.folders.length > 0) {
+      setStatusMessage(`Initializing polling for ${appConfig.folders.length} folder(s) on ${appConfig.server.host}.`);
+      setCurrentOverallStatus('connecting'); // General status update
 
-    if (isMonitoring && appConfig && appConfig.folders && appConfig.folders.length > 0) {
-      setCurrentStatus('connecting'); 
-      setStatusMessage(`Initializing monitoring for ${appConfig.folders.length} folder(s)...`);
+      appConfig.folders.forEach((folder: MonitoredFolderConfig) => {
+        const pollFolder = async () => {
+          if (!isGloballyMonitoring || !appConfig || !appConfig.server) return;
 
-      const initialConnectionTimeout = setTimeout(() => {
-        if (!isMonitoring || !appConfig) return; 
-
-        setCurrentStatus('monitoring');
-        setStatusMessage(`Monitoring ${appConfig.folders.length} folder(s) on ${appConfig.server.host}.`);
-
-        appConfig.folders.forEach((folder: MonitoredFolderConfig) => {
-          const intervalId = setInterval(async () => {
-            if (!isMonitoring || !appConfig) { 
-              clearInterval(intervalId);
-              return;
-            }
-
-            const outcome = Math.random();
+          setCurrentOverallStatus('transferring'); // Indicates work is happening
+          setStatusMessage(`Checking folder '${folder.name}' on ${appConfig.server.host}...`);
+          
+          try {
+            const result: FetchFtpFolderResponse = await fetchAndProcessFtpFolder(appConfig.server, folder);
             
-            // Use a functional update for setCurrentStatus if the new status depends on the previous one
-            // to avoid stale closures if currentStatus were needed here for logic.
-            // However, for setStatusMessage, we can set it directly.
-
-            if (outcome < 0.1) { 
-              // Avoid setting status to 'error' if already in a 'transferring' or 'success' state from another folder quickly
-              setCurrentStatus(prevStatus => {
-                if (prevStatus !== 'transferring' && prevStatus !== 'success') {
-                  setStatusMessage(`Error checking ${folder.name} on ${appConfig.server.host}.`);
-                  return 'error'; // Or a more specific error status if needed
+            if (result.success) {
+              result.processedFiles.forEach(file => {
+                if (file.status === 'simulated_save_success') { // Later, this will be 'save_success'
+                  addFetchedFileEntry(folder.name, file.name);
                 }
-                return prevStatus; // Keep current status if it's more critical
               });
-            } else if (outcome < 0.6) { 
-              setCurrentStatus(prevStatus => {
-                 if (prevStatus === 'monitoring') { // Only update message if generally monitoring
-                    setStatusMessage(`Last check for ${folder.name}: No new files. Monitoring...`);
-                 }
-                 return prevStatus; // Status remains 'monitoring' or whatever it was
-              });
-            } else { 
-              const fileName = `sim_${folder.name.replace(/\s+/g, '_')}_${Date.now().toString().slice(-5)}_${Math.random().toString(36).substring(2, 7)}.dat`;
-              setCurrentStatus('transferring'); 
-              setStatusMessage(`Transferring '${fileName}' from ${folder.name}...`);
-
-              const transferTimeoutId = setTimeout(async () => {
-                if (!isMonitoring || !appConfig) return; 
-
-                const saveResult = await saveSimulatedFile(appConfig.server.localPath, folder.name, fileName);
-                if (saveResult.success) {
-                  addFetchedFileEntry(folder.name, fileName);
-                  setCurrentStatus('success'); 
-                  setStatusMessage(`Successfully transferred '${fileName}' from ${folder.name}.`);
-                } else {
-                  console.warn(`File '${fileName}' from ${folder.name} transferred (simulated) but failed to save locally: ${saveResult.message}`);
-                  setCurrentStatus('error'); 
-                  setStatusMessage(`Failed to save '${fileName}' from ${folder.name}. ${saveResult.message}`);
-                }
-                
-                const successToMonitorTimeoutId = setTimeout(() => {
-                  if (isMonitoring && appConfig) { 
-                      setCurrentStatus('monitoring'); 
-                      setStatusMessage(`Monitoring ${appConfig.folders.length} folder(s) on ${appConfig.server.host}.`);
-                  }
-                }, 2000);
-                activeTimeouts.push(successToMonitorTimeoutId);
-
-              }, 1500); 
-              activeTimeouts.push(transferTimeoutId);
+              setStatusMessage(`Folder '${folder.name}': ${result.message}`);
+              setCurrentOverallStatus('success'); // Temporary status for this folder
+            } else {
+              setStatusMessage(`Error processing folder '${folder.name}': ${result.message}`);
+              setCurrentOverallStatus('error'); // Temporary status for this folder
             }
-          }, (folder.interval || 5) * 1000 * 0.7); 
-          activeIntervals.push(intervalId);
-        });
-      }, 1500); 
+          } catch (e: any) {
+            setStatusMessage(`Critical error polling folder '${folder.name}': ${e.message}`);
+            setCurrentOverallStatus('error'); // Temporary status for this folder
+          }
+          
+          // After processing a folder, revert to general monitoring status if no other errors
+          // This timeout helps show the specific folder status for a moment.
+          setTimeout(() => {
+            if (isGloballyMonitoring && appConfig) {
+                 // Only revert to 'monitoring' if the last operation wasn't a persistent error.
+                 // If currentOverallStatus is 'error', it might be a system-wide error, so don't overwrite.
+                 setCurrentOverallStatus(prev => prev === 'error' ? 'error' : 'monitoring');
+                 setStatusMessage(`Monitoring active for ${appConfig.folders.length} folder(s). Last checked: ${folder.name}.`);
+            }
+          }, 3000);
+        };
 
-      activeTimeouts.push(initialConnectionTimeout);
+        // Initial poll for this folder, then set interval
+        pollFolder(); 
+        const intervalId = setInterval(pollFolder, (folder.interval || 5) * 60 * 1000); // Interval is in minutes
+        activeIntervals.push(intervalId);
+      });
 
-    } else if (!isMonitoring) {
-      setCurrentStatus('idle');
-      setStatusMessage(appConfig ? "Monitoring paused." : "No active configuration. Please set up in Configuration page.");
-    } else if (isMonitoring && (!appConfig || !appConfig.folders || appConfig.folders.length === 0)) {
-      setCurrentStatus('idle');
+    } else if (!isGloballyMonitoring) {
+      setCurrentOverallStatus('idle');
+      setStatusMessage(appConfig ? "Monitoring paused. Enable via Configuration page." : "No active configuration. Please set up in Configuration page.");
+    } else if (isGloballyMonitoring && (!appConfig || !appConfig.folders || appConfig.folders.length === 0)) {
+      setCurrentOverallStatus('idle');
       setStatusMessage("Monitoring active, but no folders configured to watch.");
     }
-
+  
     return () => {
       activeIntervals.forEach(clearInterval);
-      activeTimeouts.forEach(clearTimeout); 
     };
-  }, [isMonitoring, appConfig, addFetchedFileEntry]);
+    // Removed currentOverallStatus from deps. StatusMessage is also not a direct dep for the loop.
+  }, [isGloballyMonitoring, appConfig, addFetchedFileEntry]);
 
 
   return (
@@ -208,10 +180,8 @@ export default function FtpActivityPage() {
       </header>
 
       <main className="w-full max-w-3xl space-y-8">
-        <MinimalStatusDisplay status={currentStatus} isMonitoring={isMonitoring} message={statusMessage} />
-
+        <MinimalStatusDisplay status={currentOverallStatus} isMonitoring={isGloballyMonitoring} message={statusMessage} />
         <FetchedFilesList files={fetchedFiles} />
-
       </main>
        <footer className="w-full max-w-3xl text-center text-sm text-muted-foreground mt-8">
         <p>&copy; {new Date().getFullYear()} NiMet-SADIS-Ingest. FTP Activity.</p>
@@ -219,4 +189,3 @@ export default function FtpActivityPage() {
     </div>
   );
 }
-
