@@ -34,3 +34,12 @@ export interface FetchedFileEntry {
   fileName: string;
   timestamp: Date;
 }
+
+// Response from the server action that processes an FTP folder
+export interface FetchFtpFolderResponse {
+    success: boolean;
+    message: string;
+    folderName: string;
+    processedFiles: { name: string; status: 'simulated_save_success' | 'simulated_save_failed'; error?: string }[];
+    error?: string; // General error for the folder processing (e.g., connection failed)
+}
