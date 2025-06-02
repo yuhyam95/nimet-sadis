@@ -8,11 +8,10 @@ import {
   SidebarContent,
   SidebarHeader,
   SidebarInset,
-  SidebarMenuButton, // Keep for title
   SidebarProvider,
 } from '@/components/ui/sidebar';
-import { HomeIcon } from 'lucide-react';
-import { AppSidebarNav } from '@/components/app-sidebar-nav'; // New import
+import Image from 'next/image'; // Import next/image
+import { AppSidebarNav } from '@/components/app-sidebar-nav';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -40,22 +39,22 @@ export default function RootLayout({
         <SidebarProvider defaultOpen={true}>
           <Sidebar side="left" collapsible="icon" variant="sidebar">
             <SidebarHeader className="p-4 flex flex-col items-center group-data-[collapsible=icon]:items-start">
-              {/* Using SidebarMenuButton for styling the app title, not as a functional button here */}
-              <div // Changed to div, or use Link if it should go to home
-                className="text-xl font-semibold mb-4 flex items-center justify-center group-data-[collapsible=icon]:justify-start group-data-[collapsible=icon]:px-0.5 group-data-[collapsible=icon]:w-full cursor-default"
+              <div
+                className="mb-4 flex items-center justify-center group-data-[collapsible=icon]:justify-start group-data-[collapsible=icon]:px-0.5 group-data-[collapsible=icon]:w-full cursor-default"
               >
-                <HomeIcon className="h-6 w-6 text-primary" />
-                <span className="group-data-[collapsible=icon]:hidden ml-2">FileFetcher</span>
+                <Image
+                  src="https://nimet.gov.ng/assets/img/logo.png"
+                  alt="FileFetcher Logo"
+                  width={40} // Adjust width as needed
+                  height={40} // Adjust height as needed
+                  className="h-10 w-10 object-contain" // Use h-10 w-10 for consistency if needed, or specific pixel values
+                />
+                <span className="text-xl font-semibold group-data-[collapsible=icon]:hidden ml-2">FileFetcher</span>
               </div>
             </SidebarHeader>
             <SidebarContent>
               <AppSidebarNav />
             </SidebarContent>
-            {/* Example Footer (optional)
-            <SidebarFooter className="p-2 group-data-[collapsible=icon]:hidden">
-              <p className="text-xs text-center text-muted-foreground">© {new Date().getFullYear()}</p>
-            </SidebarFooter>
-            */}
           </Sidebar>
           <SidebarInset>
             {children}
