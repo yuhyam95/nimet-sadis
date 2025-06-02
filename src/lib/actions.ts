@@ -1,42 +1,77 @@
 
 "use server";
 
-import type { FtpConfig } from "@/types";
+import type { AppConfig, FtpServerDetails, MonitoredFolderConfig } from "@/types";
 import { z } from "zod";
 import fs from 'fs/promises';
 import path from 'path';
 
-const ftpConfigSchema = z.object({
+const ftpServerDetailsSchema = z.object({
   host: z.string().min(1, "Host is required"),
   port: z.coerce.number().int().positive("Port must be a positive integer"),
   username: z.string().min(1, "Username is required"),
   password: z.string().optional(),
+  localPath: z.string().min(1, "Root local path is required"), // Cannot require starting with / if we want project-relative paths
+});
+
+const monitoredFolderConfigSchema = z.object({
+  id: z.string().min(1), // Typically a UUID generated on the client
+  name: z.string().min(1, "Folder name is required"),
   remotePath: z.string().min(1, "Remote path is required").refine(val => val.startsWith('/'), { message: "Remote path must start with /"}),
-  localPath: z.string().min(1, "Local path is required"),
   interval: z.coerce.number().int().min(1, "Interval must be at least 1 minute"),
+});
+
+const appConfigSchema = z.object({
+  server: ftpServerDetailsSchema,
+  folders: z.array(monitoredFolderConfigSchema).min(1, "At least one monitored folder is required"),
 });
 
 export interface ActionResponse {
   success: boolean;
   message: string;
-  config?: FtpConfig;
-  errorDetails?: Record<string, string[]>;
+  config?: AppConfig; // Updated to AppConfig
+  errorDetails?: Record<string, any>; // Can be nested for field arrays
 }
 
-// Simulate starting/stopping monitoring
 let isMonitoringActive = false;
-let currentConfig: FtpConfig | null = null;
+let currentAppConfig: AppConfig | null = null;
 
 export async function submitConfiguration(
   prevState: ActionResponse | null,
   formData: FormData
 ): Promise<ActionResponse> {
-  const rawFormData = Object.fromEntries(formData.entries());
+  const rawServerData = {
+    host: formData.get("host"),
+    port: formData.get("port"),
+    username: formData.get("username"),
+    password: formData.get("password"),
+    localPath: formData.get("localPath"),
+  };
 
-  const validationResult = ftpConfigSchema.safeParse(rawFormData);
+  const foldersJson = formData.get("foldersJson") as string | null;
+  let parsedFolders: any[] = [];
+
+  if (foldersJson) {
+    try {
+      parsedFolders = JSON.parse(foldersJson);
+    } catch (error) {
+      return {
+        success: false,
+        message: "Invalid format for folder configurations.",
+        errorDetails: { folders: "Could not parse folder data." },
+      };
+    }
+  }
+
+  const combinedConfig = {
+    server: rawServerData,
+    folders: parsedFolders,
+  };
+  
+  const validationResult = appConfigSchema.safeParse(combinedConfig);
 
   if (!validationResult.success) {
-    console.error("Validation failed:", validationResult.error.flatten().fieldErrors);
+    console.error("Validation failed:", validationResult.error.flatten());
     return {
       success: false,
       message: "Validation failed. Please check your inputs.",
@@ -45,10 +80,20 @@ export async function submitConfiguration(
   }
 
   const newConfig = validationResult.data;
-  currentConfig = newConfig;
-  isMonitoringActive = true; // Simulate starting monitoring
+  currentAppConfig = newConfig;
+  isMonitoringActive = true; 
 
   console.log("Configuration submitted:", newConfig);
+
+  // Create the root localPath directory if it doesn't exist
+  try {
+    await fs.mkdir(path.resolve(newConfig.server.localPath), { recursive: true });
+  } catch (error: any) {
+     // Log the error, but don't fail the whole submission for this
+     // The saveSimulatedFile action will handle per-folder errors
+    console.warn(`Could not create root local path ${newConfig.server.localPath}: ${error.message}`);
+  }
+
 
   return {
     success: true,
@@ -58,7 +103,7 @@ export async function submitConfiguration(
 }
 
 export async function toggleMonitoring(start: boolean): Promise<ActionResponse> {
-  if (start && !currentConfig) {
+  if (start && !currentAppConfig) {
     isMonitoringActive = false;
     return {
       success: false,
@@ -72,45 +117,45 @@ export async function toggleMonitoring(start: boolean): Promise<ActionResponse> 
   return {
     success: true,
     message: statusMessage,
-    config: currentConfig ?? undefined, // Return current config if available
+    config: currentAppConfig ?? undefined,
   };
 }
 
-export async function getAppStatusAndLogs(): Promise<{ status: 'monitoring' | 'idle' | 'error', logs: [], config: FtpConfig | null }> {
+export async function getAppStatusAndLogs(): Promise<{ status: 'monitoring' | 'idle' | 'error', logs: [], config: AppConfig | null }> {
     await new Promise(resolve => setTimeout(resolve, 200)); 
     return {
         status: isMonitoringActive ? 'monitoring' : 'idle',
         logs: [], 
-        config: currentConfig,
+        config: currentAppConfig,
     };
 }
 
 export async function saveSimulatedFile(
-  configLocalPath: string, 
+  rootLocalPath: string,
+  targetSubFolder: string, // e.g., MonitoredFolderConfig.name
   fileName: string
 ): Promise<{ success: boolean; message: string; fullPath?: string }> {
-  if (!configLocalPath || !fileName) {
-    return { success: false, message: "Local path or filename missing for saving file." };
+  if (!rootLocalPath || !targetSubFolder || !fileName) {
+    return { success: false, message: "Root local path, target subfolder, or filename missing for saving file." };
   }
   try {
-    // Relative paths are resolved against process.cwd() by default, which is usually the project root.
-    // For absolute paths, fs.mkdir and path.join will use them as is.
-    const targetDirectory = path.resolve(configLocalPath); // Ensure it's an absolute path for consistency
+    const resolvedRootPath = path.resolve(rootLocalPath); // Ensure root is absolute
+    const fullDirectoryPath = path.join(resolvedRootPath, targetSubFolder);
     
-    await fs.mkdir(targetDirectory, { recursive: true });
+    await fs.mkdir(fullDirectoryPath, { recursive: true });
     
-    const fullPath = path.join(targetDirectory, fileName);
+    const fullFilePath = path.join(fullDirectoryPath, fileName);
     
-    const fileContent = `Simulated content for file: ${fileName}\nTimestamp: ${new Date().toISOString()}\nThis is a simulated file downloaded by NiMet-SADIS-Ingest.`;
-    await fs.writeFile(fullPath, fileContent, 'utf-8');
+    const fileContent = `Simulated content for file: ${fileName}\nSaved in folder: ${targetSubFolder}\nTimestamp: ${new Date().toISOString()}\nThis is a simulated file downloaded by NiMet-SADIS-Ingest.`;
+    await fs.writeFile(fullFilePath, fileContent, 'utf-8');
     
-    console.log(`Simulated file saved with content: ${fullPath}`);
-    return { success: true, message: `Simulated file '${fileName}' saved with content to ${targetDirectory}.`, fullPath };
+    console.log(`Simulated file saved: ${fullFilePath}`);
+    return { success: true, message: `Simulated file '${fileName}' saved to ${fullDirectoryPath}.`, fullPath: fullFilePath };
   } catch (error: any) {
-    console.error(`Failed to save simulated file '${fileName}' to ${configLocalPath}:`, error);
+    console.error(`Failed to save simulated file '${fileName}' to '${targetSubFolder}' in '${rootLocalPath}':`, error);
     return { 
       success: false, 
-      message: `Failed to save simulated file '${fileName}' to ${configLocalPath}. Error: ${error.message}. Check server permissions and path validity.` 
+      message: `Failed to save simulated file '${fileName}' to subfolder '${targetSubFolder}'. Error: ${error.message}. Check server permissions and path validity.` 
     };
   }
 }
