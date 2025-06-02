@@ -45,11 +45,10 @@ export default function RootLayout({
                 <Image
                   src="https://nimet.gov.ng/assets/img/logo.png"
                   alt="NiMet-SADIS-Ingest Logo"
-                  width={40} // Adjust width as needed
-                  height={40} // Adjust height as needed
-                  className="h-10 w-10 object-contain" // Use h-10 w-10 for consistency if needed, or specific pixel values
+                  width={40}
+                  height={40}
+                  className="h-10 w-10 object-contain"
                 />
-                <span className="text-xl font-semibold group-data-[collapsible=icon]:hidden ml-2">NiMet-SADIS-Ingest</span>
               </div>
             </SidebarHeader>
             <SidebarContent>
