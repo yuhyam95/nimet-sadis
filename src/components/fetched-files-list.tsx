@@ -4,7 +4,7 @@
 import type { FetchedFileEntry } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileText, FolderArchive, Clock } from "lucide-react"; // Changed FileIcon to FileText for clarity
+import { FileText, FolderArchive, Clock } from "lucide-react";
 
 interface FetchedFilesListProps {
   files: FetchedFileEntry[];
@@ -29,7 +29,7 @@ export function FetchedFilesList({ files }: FetchedFilesListProps) {
           <ScrollArea className="h-60 w-full rounded-md border p-3 bg-muted/30">
             <ul className="space-y-3">
               {files.map((entry, index) => (
-                <li key={index} className="flex flex-col p-3 rounded-md hover:bg-background/70 transition-colors border-b last:border-b-0">
+                <li key={`${entry.folderName}-${entry.fileName}-${index}`} className="flex flex-col p-3 rounded-md hover:bg-background/70 transition-colors border-b last:border-b-0">
                   <div className="flex items-center space-x-2">
                     <FileText className="h-4 w-4 text-foreground/70 shrink-0" />
                     <span className="text-foreground/90 font-medium break-all">{entry.fileName}</span>
