@@ -98,7 +98,7 @@ export default function FtpActivityPage() {
           setIsGloballyMonitoring(serverOverallStatus === 'monitoring');
           setCurrentOverallStatus(serverOverallStatus === 'monitoring' ? 'monitoring' : 'idle');
           setStatusMessage(serverOverallStatus === 'monitoring' ? `Monitoring active for ${serverConfig.folders.length} folder(s). Ready to poll.` : "Idle. Monitoring is not active. Check Configuration.");
-          await fetchLocalFiles(); // Fetch local files after config is loaded
+          await fetchLocalFiles(); 
         } else {
           setAppConfig(null);
           setIsGloballyMonitoring(false);
@@ -116,7 +116,7 @@ export default function FtpActivityPage() {
       }
     }
     fetchInitialStatusAndConfig();
-  }, [fetchLocalFiles]); // Added fetchLocalFiles to dependency
+  }, [fetchLocalFiles]); 
 
   useEffect(() => {
     const activeIntervals: NodeJS.Timeout[] = [];
@@ -138,9 +138,7 @@ export default function FtpActivityPage() {
             if (result.success) {
               setStatusMessage(`Folder '${folder.name}': ${result.message}`);
               setCurrentOverallStatus('success'); 
-              if (result.processedFiles.some(f => f.status === 'save_success')) {
-                await fetchLocalFiles(); // Refresh local files list if any file was saved
-              }
+              // Removed automatic call to fetchLocalFiles here
             } else {
               setStatusMessage(`Error processing folder '${folder.name}': ${result.message}`);
               setCurrentOverallStatus('error'); 
@@ -152,10 +150,10 @@ export default function FtpActivityPage() {
           
           setTimeout(() => {
             if (isGloballyMonitoring && appConfig) {
-                 setCurrentOverallStatus(prev => prev === 'error' ? 'error' : 'monitoring'); // Revert to monitoring or stay error
+                 setCurrentOverallStatus(prev => prev === 'error' ? 'error' : 'monitoring'); 
                  setStatusMessage(`Monitoring active for ${appConfig.folders.length} folder(s). Last checked: ${folder.name}.`);
             }
-          }, 3000); // Brief pause to show success/error message before reverting to 'monitoring'
+          }, 3000); 
         };
 
         pollFolder(); 
@@ -174,7 +172,7 @@ export default function FtpActivityPage() {
     return () => {
       activeIntervals.forEach(clearInterval);
     };
-  }, [isGloballyMonitoring, appConfig, fetchLocalFiles]);
+  }, [isGloballyMonitoring, appConfig]);
 
 
   return (
@@ -209,3 +207,4 @@ export default function FtpActivityPage() {
     </div>
   );
 }
+
