@@ -28,9 +28,9 @@ export interface LogEntry {
 
 export type AppStatus = 'idle' | 'configuring' | 'monitoring' | 'error' | 'connecting' | 'transferring' | 'success';
 
-// This type represents individual entries in the fetched files list on the client
+// This type represents individual entries in the fetched files list on the client (DEPRECATED by LocalDirectoryListing for FetchedFilesList)
 export interface FetchedFileEntry {
-  folderName: string; // The name of the MonitoredFolderConfig (e.g., "Satellite Images")
+  folderName: string; 
   fileName: string;
   timestamp: Date;
 }
@@ -42,8 +42,26 @@ export interface FetchFtpFolderResponse {
     folderName: string;
     processedFiles: { 
         name: string; 
-        status: 'download_success' | 'download_failed' | 'skipped_isDirectory' | 'skipped_unknown_type'; 
+        status: 'download_success' | 'download_failed' | 'skipped_isDirectory' | 'skipped_unknown_type' | 'save_success' | 'save_failed' | 'simulated_save_success'; 
         error?: string 
     }[];
-    error?: string; // General error for the folder processing (e.g., connection failed)
+    error?: string; 
+}
+
+// Types for displaying local directory content
+export interface LocalFileEntry {
+  name: string;
+  size: number; // in bytes
+  lastModified: Date;
+}
+
+export interface LocalDirectoryListing {
+  [folderName: string]: LocalFileEntry[];
+}
+
+export interface LocalDirectoryResponse {
+  success: boolean;
+  listing?: LocalDirectoryListing;
+  message?: string;
+  error?: string;
 }

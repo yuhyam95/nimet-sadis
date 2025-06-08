@@ -1,18 +1,16 @@
 
 "use server";
 
-import type { AppConfig, FtpServerDetails, MonitoredFolderConfig, LogEntry as AppLogEntry, FetchFtpFolderResponse as ServerFetchResponse } from "@/types";
+import type { AppConfig, FtpServerDetails, MonitoredFolderConfig, LogEntry as AppLogEntry, FetchFtpFolderResponse as ServerFetchResponse, LocalDirectoryListing, LocalDirectoryResponse } from "@/types";
 import { z } from "zod";
 import fs from 'fs/promises';
 import path from 'path';
 import { Client, FileInfo } from 'basic-ftp';
-import { Writable } from 'stream'; // Import Writable from stream
+import { Writable } from 'stream'; 
 
-// Server-side log store for FTP operations
 const ftpOperationLogs: AppLogEntry[] = [];
-const MAX_FTP_LOGS = 200; // Keep the last 200 logs
+const MAX_FTP_LOGS = 200; 
 
-// Helper function to add logs to the server-side store
 function addFtpLog(message: string, type: AppLogEntry['type']) {
   const newLog: AppLogEntry = {
     id: crypto.randomUUID(),
@@ -20,13 +18,12 @@ function addFtpLog(message: string, type: AppLogEntry['type']) {
     message,
     type,
   };
-  ftpOperationLogs.unshift(newLog); // Add to the beginning of the array
+  ftpOperationLogs.unshift(newLog); 
   if (ftpOperationLogs.length > MAX_FTP_LOGS) {
-    ftpOperationLogs.length = MAX_FTP_LOGS; // Trim to max size
+    ftpOperationLogs.length = MAX_FTP_LOGS; 
   }
 }
 
-// Helper class to collect stream data into a buffer
 class BufferCollector extends Writable {
     private chunks: Buffer[] = [];
     constructor(options?: any) {
@@ -278,9 +275,6 @@ export async function fetchAndProcessFtpFolder(
                     if (downloadError.code) {
                         errMsg += ` (code: ${downloadError.code})`;
                     }
-                    // For more verbose logging, you can stringify the whole error, but be cautious with large objects
-                    // const fullErrorString = JSON.stringify(downloadError, Object.getOwnPropertyNames(downloadError));
-                    // const detailedErrorMsg = `${logPrefix} Failed to download file '${fileName}'. Error: ${errMsg}. Full Details: ${fullErrorString}`;
                     const detailedErrorMsg = `${logPrefix} Failed to download file '${fileName}'. Error: ${errMsg}.`;
                     addFtpLog(detailedErrorMsg, 'error');
                     processedFiles.push({ name: fileName, status: 'download_failed', error: errMsg });
@@ -321,5 +315,74 @@ export async function fetchAndProcessFtpFolder(
             addFtpLog(`${logPrefix} Ensuring FTP connection is closed in finally block.`, 'info');
             await client.close(); 
         }
+    }
+}
+
+export async function getLocalDirectoryListing(): Promise<LocalDirectoryResponse> {
+    if (!currentAppConfig || !currentAppConfig.server.localPath) {
+        addFtpLog("Cannot get local directory listing: No active configuration or local path.", 'warning');
+        return { success: false, message: "No active configuration with a local path.", listing: {} };
+    }
+
+    const rootPath = path.resolve(currentAppConfig.server.localPath);
+    const listing: LocalDirectoryListing = {};
+
+    try {
+        const configuredFolderNames = new Set(currentAppConfig.folders.map(f => f.name));
+        const entries = await fs.readdir(rootPath, { withFileTypes: true });
+
+        for (const entry of entries) {
+            if (entry.isDirectory() && configuredFolderNames.has(entry.name)) {
+                const folderPath = path.join(rootPath, entry.name);
+                const files: (import("@/types").LocalFileEntry)[] = [];
+                try {
+                    const fileEntries = await fs.readdir(folderPath, { withFileTypes: true });
+                    for (const fileEntry of fileEntries) {
+                        if (fileEntry.isFile()) {
+                            try {
+                                const filePath = path.join(folderPath, fileEntry.name);
+                                const stats = await fs.stat(filePath);
+                                files.push({
+                                    name: fileEntry.name,
+                                    size: stats.size,
+                                    lastModified: stats.mtime,
+                                });
+                            } catch (statError: any) {
+                                addFtpLog(`Error stating file ${fileEntry.name} in ${entry.name}: ${statError.message}`, 'error');
+                            }
+                        }
+                    }
+                    if (files.length > 0) {
+                        listing[entry.name] = files.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+                    } else {
+                        listing[entry.name] = []; // Show folder even if empty
+                    }
+                } catch (subDirError: any) {
+                     addFtpLog(`Error reading subdirectory ${entry.name}: ${subDirError.message}`, 'error');
+                     listing[entry.name] = []; // Still show folder but mark as potentially problematic or empty
+                }
+            }
+        }
+        // Ensure all configured folders appear in the listing, even if they don't exist on disk yet
+        configuredFolderNames.forEach(configuredFolderName => {
+            if (!listing[configuredFolderName]) {
+                listing[configuredFolderName] = [];
+            }
+        });
+
+        addFtpLog("Successfully retrieved local directory listing.", 'info');
+        return { success: true, listing };
+    } catch (error: any) {
+        if (error.code === 'ENOENT') {
+            addFtpLog(`Root local directory not found: ${rootPath}. It might be created on first download.`, 'info');
+             // If root path doesn't exist, return empty listing for all configured folders
+            const emptyListing: LocalDirectoryListing = {};
+            currentAppConfig.folders.forEach(folder => {
+                emptyListing[folder.name] = [];
+            });
+            return { success: true, listing: emptyListing, message: "Root local directory not found, will be created." };
+        }
+        addFtpLog(`Error reading local directory ${rootPath}: ${error.message}`, 'error');
+        return { success: false, error: `Failed to read local directory: ${error.message}`, listing: {} };
     }
 }

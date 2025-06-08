@@ -3,16 +3,15 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { FetchedFilesList } from "@/components/fetched-files-list";
-import type { AppConfig, LogEntry, AppStatus, MonitoredFolderConfig, FetchedFileEntry, FetchFtpFolderResponse as ServerFetchResponse } from "@/types";
-import { getAppStatusAndLogs, fetchAndProcessFtpFolder } from "@/lib/actions";
+import type { AppConfig, LogEntry, AppStatus, MonitoredFolderConfig, FetchFtpFolderResponse as ServerFetchResponse, LocalDirectoryListing, LocalDirectoryResponse } from "@/types";
+import { getAppStatusAndLogs, fetchAndProcessFtpFolder, getLocalDirectoryListing } from "@/lib/actions";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, CheckCircle2, Rss, Activity, Loader2 as InitialLoader, AlertTriangle } from "lucide-react";
+import { AlertCircle, CheckCircle2, Rss, Activity, Loader2 as InitialLoader, AlertTriangle, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
-// Renamed FetchFtpFolderResponse to avoid conflict with the server action's return type name
 type ClientFetchFtpFolderResponse = ServerFetchResponse;
-
 
 const MinimalStatusDisplay: React.FC<{ status: AppStatus; isMonitoring: boolean; message?: string }> = ({ status, isMonitoring, message }) => {
   let badgeVariant: "default" | "secondary" | "destructive" | "outline" = "secondary";
@@ -62,15 +61,31 @@ export default function FtpActivityPage() {
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [currentOverallStatus, setCurrentOverallStatus] = useState<AppStatus>("configuring");
   const [isGloballyMonitoring, setIsGloballyMonitoring] = useState<boolean>(false);
-  const [fetchedFiles, setFetchedFiles] = useState<FetchedFileEntry[]>([]);
+  const [localFilesListing, setLocalFilesListing] = useState<LocalDirectoryListing | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>("Initializing application status...");
+  const [isLoadingLocalFiles, setIsLoadingLocalFiles] = useState(false);
 
-  const addFetchedFileEntry = useCallback((folderName: string, fileName: string, timestamp: Date = new Date()) => {
-    setFetchedFiles((prevFiles) => {
-      const newEntry: FetchedFileEntry = { folderName, fileName, timestamp };
-      return [newEntry, ...prevFiles].slice(0, 100); 
-    });
-  }, []);
+  const fetchLocalFiles = useCallback(async () => {
+    if (!appConfig || !appConfig.server.localPath) {
+      setLocalFilesListing({}); // Set to empty if no path
+      return;
+    }
+    setIsLoadingLocalFiles(true);
+    try {
+      const response: LocalDirectoryResponse = await getLocalDirectoryListing();
+      if (response.success && response.listing) {
+        setLocalFilesListing(response.listing);
+      } else {
+        setStatusMessage(response.message || response.error || "Could not load local files.");
+        setLocalFilesListing({}); // Set to empty on error
+      }
+    } catch (error) {
+      setStatusMessage("Error fetching local directory listing.");
+      setLocalFilesListing({});
+    } finally {
+      setIsLoadingLocalFiles(false);
+    }
+  }, [appConfig]);
 
   useEffect(() => {
     async function fetchInitialStatusAndConfig() {
@@ -83,10 +98,12 @@ export default function FtpActivityPage() {
           setIsGloballyMonitoring(serverOverallStatus === 'monitoring');
           setCurrentOverallStatus(serverOverallStatus === 'monitoring' ? 'monitoring' : 'idle');
           setStatusMessage(serverOverallStatus === 'monitoring' ? `Monitoring active for ${serverConfig.folders.length} folder(s). Ready to poll.` : "Idle. Monitoring is not active. Check Configuration.");
+          await fetchLocalFiles(); // Fetch local files after config is loaded
         } else {
           setAppConfig(null);
           setIsGloballyMonitoring(false);
           setCurrentOverallStatus('idle');
+          setLocalFilesListing({});
           setStatusMessage("No active configuration. Please set up in Configuration page.");
         }
       } catch (error) {
@@ -94,11 +111,12 @@ export default function FtpActivityPage() {
         setCurrentOverallStatus("error");
         setIsGloballyMonitoring(false);
         setAppConfig(null);
+        setLocalFilesListing({});
         setStatusMessage("Error fetching status. Please check server logs or console.");
       }
     }
     fetchInitialStatusAndConfig();
-  }, []);
+  }, [fetchLocalFiles]); // Added fetchLocalFiles to dependency
 
   useEffect(() => {
     const activeIntervals: NodeJS.Timeout[] = [];
@@ -115,17 +133,14 @@ export default function FtpActivityPage() {
           setStatusMessage(`Checking folder '${folder.name}' on ${appConfig.server.host}...`);
           
           try {
-            // Call the new server action
             const result: ClientFetchFtpFolderResponse = await fetchAndProcessFtpFolder(appConfig.server, folder);
             
             if (result.success) {
-              result.processedFiles.forEach(file => {
-                if (file.status === 'simulated_save_success') { 
-                  addFetchedFileEntry(folder.name, file.name);
-                }
-              });
               setStatusMessage(`Folder '${folder.name}': ${result.message}`);
               setCurrentOverallStatus('success'); 
+              if (result.processedFiles.some(f => f.status === 'save_success')) {
+                await fetchLocalFiles(); // Refresh local files list if any file was saved
+              }
             } else {
               setStatusMessage(`Error processing folder '${folder.name}': ${result.message}`);
               setCurrentOverallStatus('error'); 
@@ -137,10 +152,10 @@ export default function FtpActivityPage() {
           
           setTimeout(() => {
             if (isGloballyMonitoring && appConfig) {
-                 setCurrentOverallStatus(prev => prev === 'error' ? 'error' : 'monitoring');
+                 setCurrentOverallStatus(prev => prev === 'error' ? 'error' : 'monitoring'); // Revert to monitoring or stay error
                  setStatusMessage(`Monitoring active for ${appConfig.folders.length} folder(s). Last checked: ${folder.name}.`);
             }
-          }, 3000);
+          }, 3000); // Brief pause to show success/error message before reverting to 'monitoring'
         };
 
         pollFolder(); 
@@ -159,7 +174,7 @@ export default function FtpActivityPage() {
     return () => {
       activeIntervals.forEach(clearInterval);
     };
-  }, [isGloballyMonitoring, appConfig, addFetchedFileEntry]);
+  }, [isGloballyMonitoring, appConfig, fetchLocalFiles]);
 
 
   return (
@@ -167,20 +182,26 @@ export default function FtpActivityPage() {
       <header className="w-full max-w-3xl flex items-center justify-between">
         <div className="text-center md:text-left">
             <h1 className="text-4xl font-bold text-primary tracking-tight">
-            FTP Activity & Fetched Files
+            FTP Activity & Local Files
             </h1>
             <p className="text-muted-foreground mt-2 text-lg">
-            Monitor live FTP transfers from configured folders and view retrieved files.
+            Monitor FTP transfers and view files stored locally from configured folders.
             </p>
         </div>
-        <div className="md:hidden">
-            <SidebarTrigger />
+        <div className="flex items-center gap-2">
+             <Button onClick={fetchLocalFiles} variant="outline" size="sm" disabled={isLoadingLocalFiles || !appConfig}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingLocalFiles ? 'animate-spin' : ''}`} />
+                Refresh Local Files
+            </Button>
+            <div className="md:hidden">
+                <SidebarTrigger />
+            </div>
         </div>
       </header>
 
       <main className="w-full max-w-3xl space-y-8">
         <MinimalStatusDisplay status={currentOverallStatus} isMonitoring={isGloballyMonitoring} message={statusMessage} />
-        <FetchedFilesList files={fetchedFiles} />
+        <FetchedFilesList directoryListing={localFilesListing} isLoading={isLoadingLocalFiles} />
       </main>
        <footer className="w-full max-w-3xl text-center text-sm text-muted-foreground mt-8">
         <p>&copy; {new Date().getFullYear()} NiMet-SADIS-Ingest. FTP Activity.</p>
