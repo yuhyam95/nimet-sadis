@@ -63,14 +63,19 @@ export default function FtpActivityPage() {
   const [isGloballyMonitoring, setIsGloballyMonitoring] = useState<boolean>(false);
   const [localFilesListing, setLocalFilesListing] = useState<LocalDirectoryListing | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>("Initializing application status...");
-  const [isLoadingLocalFiles, setIsLoadingLocalFiles] = useState(false);
+  const [isLoadingLocalFiles, setIsLoadingLocalFiles] = useState(true); // Initialize to true
 
   const fetchLocalFiles = useCallback(async () => {
+    // Ensure loading is true when we attempt to fetch
+    setIsLoadingLocalFiles(true); 
+
     if (!appConfig || !appConfig.server.localPath) {
       setLocalFilesListing({}); // Set to empty if no path
+      // setStatusMessage("Local path not configured. Cannot load files."); // Optional message
+      setIsLoadingLocalFiles(false); // Crucial: stop loading if no config/path
       return;
     }
-    setIsLoadingLocalFiles(true);
+
     try {
       const response: LocalDirectoryResponse = await getLocalDirectoryListing();
       if (response.success && response.listing) {
@@ -83,14 +88,16 @@ export default function FtpActivityPage() {
       setStatusMessage("Error fetching local directory listing.");
       setLocalFilesListing({});
     } finally {
-      setIsLoadingLocalFiles(false);
+      setIsLoadingLocalFiles(false); // Always stop loading
     }
-  }, [appConfig]);
+  }, [appConfig]); // Dependency on appConfig is correct
 
   useEffect(() => {
     async function fetchInitialStatusAndConfig() {
       setCurrentOverallStatus("configuring");
       setStatusMessage("Initializing application state...");
+      setIsLoadingLocalFiles(true); // Start loading for the initial fetch sequence
+
       try {
         const { status: serverOverallStatus, config: serverConfig } = await getAppStatusAndLogs();
         if (serverConfig) {
@@ -98,13 +105,22 @@ export default function FtpActivityPage() {
           setIsGloballyMonitoring(serverOverallStatus === 'monitoring');
           setCurrentOverallStatus(serverOverallStatus === 'monitoring' ? 'monitoring' : 'idle');
           setStatusMessage(serverOverallStatus === 'monitoring' ? `Monitoring active for ${serverConfig.folders.length} folder(s). Ready to poll.` : "Idle. Monitoring is not active. Check Configuration.");
-          await fetchLocalFiles(); 
+          // Call fetchLocalFiles after appConfig is set
+          // No direct await here, let the other effect handle it, or call directly if preferred.
+          // For simplicity and directness:
+          if (serverConfig.server.localPath) {
+             await fetchLocalFiles(); // Await here since we manage setIsLoadingLocalFiles inside
+          } else {
+             setLocalFilesListing({});
+             setIsLoadingLocalFiles(false); // No local path to load from
+          }
         } else {
           setAppConfig(null);
           setIsGloballyMonitoring(false);
           setCurrentOverallStatus('idle');
           setLocalFilesListing({});
           setStatusMessage("No active configuration. Please set up in Configuration page.");
+          setIsLoadingLocalFiles(false); // No config, so stop loading
         }
       } catch (error) {
         console.error("Failed to fetch initial app status for FTP Activity Page:", error);
@@ -113,11 +129,13 @@ export default function FtpActivityPage() {
         setAppConfig(null);
         setLocalFilesListing({});
         setStatusMessage("Error fetching status. Please check server logs or console.");
+        setIsLoadingLocalFiles(false); // Error, so stop loading
       }
     }
     fetchInitialStatusAndConfig();
-  }, [fetchLocalFiles]); 
+  }, [fetchLocalFiles]); // fetchLocalFiles is a dependency as it's called inside
 
+  // This separate effect for polling is good.
   useEffect(() => {
     const activeIntervals: NodeJS.Timeout[] = [];
   
@@ -138,7 +156,6 @@ export default function FtpActivityPage() {
             if (result.success) {
               setStatusMessage(`Folder '${folder.name}': ${result.message}`);
               setCurrentOverallStatus('success'); 
-              // Removed automatic call to fetchLocalFiles here
             } else {
               setStatusMessage(`Error processing folder '${folder.name}': ${result.message}`);
               setCurrentOverallStatus('error'); 
@@ -207,4 +224,3 @@ export default function FtpActivityPage() {
     </div>
   );
 }
-
