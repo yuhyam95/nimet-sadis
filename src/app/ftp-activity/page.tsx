@@ -8,7 +8,7 @@ import { getAppStatusAndLogs, fetchAndProcessFtpFolder, getLocalDirectoryListing
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, CheckCircle2, Rss, Activity, Loader2 as InitialLoader, AlertTriangle, RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCircle2, Rss, Activity, Loader2 as InitialLoader, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type ClientFetchFtpFolderResponse = ServerFetchResponse;
@@ -63,56 +63,38 @@ export default function FtpActivityPage() {
   const [isGloballyMonitoring, setIsGloballyMonitoring] = useState<boolean>(false);
   const [localFilesListing, setLocalFilesListing] = useState<LocalDirectoryListing | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>("Initializing application status...");
-  const [isLoadingLocalFiles, setIsLoadingLocalFiles] = useState(true); // Initialize to true
-
-  const fetchLocalFiles = useCallback(async () => {
-    // Ensure loading is true when we attempt to fetch
-    setIsLoadingLocalFiles(true); 
-
-    if (!appConfig || !appConfig.server.localPath) {
-      setLocalFilesListing({}); // Set to empty if no path
-      // setStatusMessage("Local path not configured. Cannot load files."); // Optional message
-      setIsLoadingLocalFiles(false); // Crucial: stop loading if no config/path
-      return;
-    }
-
-    try {
-      const response: LocalDirectoryResponse = await getLocalDirectoryListing();
-      if (response.success && response.listing) {
-        setLocalFilesListing(response.listing);
-      } else {
-        setStatusMessage(response.message || response.error || "Could not load local files.");
-        setLocalFilesListing({}); // Set to empty on error
-      }
-    } catch (error) {
-      setStatusMessage("Error fetching local directory listing.");
-      setLocalFilesListing({});
-    } finally {
-      setIsLoadingLocalFiles(false); // Always stop loading
-    }
-  }, [appConfig]); // Dependency on appConfig is correct
+  const [isLoadingLocalFiles, setIsLoadingLocalFiles] = useState(true);
 
   useEffect(() => {
-    async function fetchInitialStatusAndConfig() {
+    async function fetchInitialStatusConfigAndLocalFiles() {
       setCurrentOverallStatus("configuring");
       setStatusMessage("Initializing application state...");
-      setIsLoadingLocalFiles(true); // Start loading for the initial fetch sequence
+      setIsLoadingLocalFiles(true);
 
       try {
         const { status: serverOverallStatus, config: serverConfig } = await getAppStatusAndLogs();
+        
         if (serverConfig) {
           setAppConfig(serverConfig);
           setIsGloballyMonitoring(serverOverallStatus === 'monitoring');
           setCurrentOverallStatus(serverOverallStatus === 'monitoring' ? 'monitoring' : 'idle');
           setStatusMessage(serverOverallStatus === 'monitoring' ? `Monitoring active for ${serverConfig.folders.length} folder(s). Ready to poll.` : "Idle. Monitoring is not active. Check Configuration.");
-          // Call fetchLocalFiles after appConfig is set
-          // No direct await here, let the other effect handle it, or call directly if preferred.
-          // For simplicity and directness:
+
           if (serverConfig.server.localPath) {
-             await fetchLocalFiles(); // Await here since we manage setIsLoadingLocalFiles inside
+            try {
+              const response: LocalDirectoryResponse = await getLocalDirectoryListing();
+              if (response.success && response.listing) {
+                setLocalFilesListing(response.listing);
+              } else {
+                setStatusMessage(prev => `${prev} Warning: ${response.message || response.error || "Could not load local files."}`);
+                setLocalFilesListing({}); 
+              }
+            } catch (localError) {
+              setStatusMessage(prev => `${prev} Error fetching local directory listing.`);
+              setLocalFilesListing({});
+            }
           } else {
-             setLocalFilesListing({});
-             setIsLoadingLocalFiles(false); // No local path to load from
+            setLocalFilesListing({});
           }
         } else {
           setAppConfig(null);
@@ -120,7 +102,6 @@ export default function FtpActivityPage() {
           setCurrentOverallStatus('idle');
           setLocalFilesListing({});
           setStatusMessage("No active configuration. Please set up in Configuration page.");
-          setIsLoadingLocalFiles(false); // No config, so stop loading
         }
       } catch (error) {
         console.error("Failed to fetch initial app status for FTP Activity Page:", error);
@@ -129,13 +110,13 @@ export default function FtpActivityPage() {
         setAppConfig(null);
         setLocalFilesListing({});
         setStatusMessage("Error fetching status. Please check server logs or console.");
-        setIsLoadingLocalFiles(false); // Error, so stop loading
+      } finally {
+        setIsLoadingLocalFiles(false);
       }
     }
-    fetchInitialStatusAndConfig();
-  }, [fetchLocalFiles]); // fetchLocalFiles is a dependency as it's called inside
+    fetchInitialStatusConfigAndLocalFiles();
+  }, []); 
 
-  // This separate effect for polling is good.
   useEffect(() => {
     const activeIntervals: NodeJS.Timeout[] = [];
   
@@ -204,10 +185,6 @@ export default function FtpActivityPage() {
             </p>
         </div>
         <div className="flex items-center gap-2">
-             <Button onClick={fetchLocalFiles} variant="outline" size="sm" disabled={isLoadingLocalFiles || !appConfig}>
-                <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingLocalFiles ? 'animate-spin' : ''}`} />
-                Refresh Local Files
-            </Button>
             <div className="md:hidden">
                 <SidebarTrigger />
             </div>
@@ -224,3 +201,4 @@ export default function FtpActivityPage() {
     </div>
   );
 }
+
