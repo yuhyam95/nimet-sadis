@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { FileFetcherForm } from "@/components/file-fetcher-form";
-import type { FtpConfig, LogEntry, AppStatus } from "@/types";
+import type { AppConfig, LogEntry, AppStatus } from "@/types"; // Changed FtpConfig to AppConfig
 import { getAppStatusAndLogs } from "@/lib/actions";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { AlertTriangle } from "lucide-react";
 
 
 export default function ConfigurationPage() {
-  const [config, setConfig] = useState<FtpConfig | null>(null);
+  const [config, setConfig] = useState<AppConfig | null>(null); // Changed FtpConfig to AppConfig
   const [formLogs, setFormLogs] = useState<LogEntry[]>([]);
   const [isMonitoring, setIsMonitoring] = useState<boolean>(false);
   const [pageStatus, setPageStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -23,7 +23,7 @@ export default function ConfigurationPage() {
     ].slice(0, 10));
   }, []); 
 
-  const handleConfigChange = useCallback((newConfig: FtpConfig) => {
+  const handleConfigChange = useCallback((newConfig: AppConfig) => { // Changed FtpConfig to AppConfig
     setConfig(newConfig);
   }, []); 
 
@@ -32,24 +32,33 @@ export default function ConfigurationPage() {
   }, []); 
 
   useEffect(() => {
+    let isMounted = true;
     async function fetchInitialData() {
+      if (!isMounted) return;
       setPageStatus("loading");
       try {
-        const { status, config: serverConfig } = await getAppStatusAndLogs();
+        const { status, config: serverConfig } = await getAppStatusAndLogs(); // serverConfig is AppConfig | null
+        if (!isMounted) return;
+
         if (serverConfig) {
           setConfig(serverConfig);
-          setIsMonitoring(status === 'monitoring');
+          setIsMonitoring(status === 'monitoring'); // status is AppStatus, this is fine
           addFormLog({ message: "Successfully loaded existing configuration.", type: 'info' });
         } else {
           addFormLog({ message: "No existing configuration found. Please enter new details.", type: 'info' });
         }
-        setPageStatus("ready");
+        if (isMounted) setPageStatus("ready");
       } catch (error) {
+        if (!isMounted) return;
         addFormLog({ message: "Failed to load initial configuration.", type: 'error' });
-        setPageStatus("error");
+        if (isMounted) setPageStatus("error");
       }
     }
     fetchInitialData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [addFormLog]);
 
 
@@ -87,7 +96,7 @@ export default function ConfigurationPage() {
           <FileFetcherForm
             onConfigChange={handleConfigChange} 
             addLog={addFormLog}
-            initialConfig={config || undefined}
+            initialConfig={config || undefined} // config is now AppConfig | null
             isCurrentlyMonitoring={isMonitoring}
             setIsCurrentlyMonitoring={stableSetIsMonitoring}
           />
