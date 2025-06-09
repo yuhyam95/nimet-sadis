@@ -64,6 +64,11 @@ export default function FtpActivityPage() {
   const [localFilesListing, setLocalFilesListing] = useState<LocalDirectoryListing | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>("Initializing application status...");
   const [isLoadingLocalFiles, setIsLoadingLocalFiles] = useState(true);
+  const [selectedFolderNameForView, setSelectedFolderNameForView] = useState<string | null>(null);
+
+  const handleSelectFolderForView = useCallback((folderName: string | null) => {
+    setSelectedFolderNameForView(folderName);
+  }, []);
 
   useEffect(() => {
     async function fetchInitialStatusConfigAndLocalFiles() {
@@ -137,6 +142,18 @@ export default function FtpActivityPage() {
             if (result.success) {
               setStatusMessage(`Folder '${folder.name}': ${result.message}`);
               setCurrentOverallStatus('success'); 
+              // Fetch local files again after a successful poll to update the view
+              // Only if no specific folder is selected for view, to avoid disrupting file view
+              if (!selectedFolderNameForView) {
+                try {
+                    const response: LocalDirectoryResponse = await getLocalDirectoryListing();
+                    if (response.success && response.listing) {
+                        setLocalFilesListing(response.listing);
+                    }
+                } catch (e) {
+                    console.warn("Could not auto-refresh local files after FTP op:", e);
+                }
+              }
             } else {
               setStatusMessage(`Error processing folder '${folder.name}': ${result.message}`);
               setCurrentOverallStatus('error'); 
@@ -170,7 +187,8 @@ export default function FtpActivityPage() {
     return () => {
       activeIntervals.forEach(clearInterval);
     };
-  }, [isGloballyMonitoring, appConfig]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGloballyMonitoring, appConfig, selectedFolderNameForView]); // Added selectedFolderNameForView to deps to control auto-refresh
 
 
   return (
@@ -193,7 +211,12 @@ export default function FtpActivityPage() {
 
       <main className="w-full max-w-3xl space-y-8">
         <MinimalStatusDisplay status={currentOverallStatus} isMonitoring={isGloballyMonitoring} message={statusMessage} />
-        <FetchedFilesList directoryListing={localFilesListing} isLoading={isLoadingLocalFiles} />
+        <FetchedFilesList 
+            directoryListing={localFilesListing} 
+            isLoading={isLoadingLocalFiles}
+            selectedFolderName={selectedFolderNameForView}
+            onSelectFolder={handleSelectFolderForView}
+        />
       </main>
        <footer className="w-full max-w-3xl text-center text-sm text-muted-foreground mt-8">
         <p>&copy; {new Date().getFullYear()} NiMet-SADIS-Ingest. FTP Activity.</p>
@@ -201,4 +224,3 @@ export default function FtpActivityPage() {
     </div>
   );
 }
-
