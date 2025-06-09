@@ -1,9 +1,10 @@
 
 "use server";
 
-import type { AppConfig, FtpServerDetails, MonitoredFolderConfig, LogEntry as AppLogEntry, FetchFtpFolderResponse as ServerFetchResponse, LocalDirectoryListing, LocalDirectoryResponse } from "@/types";
+import type { AppConfig, FtpServerDetails, MonitoredFolderConfig, LogEntry as AppLogEntry, FetchFtpFolderResponse as ServerFetchResponse, LocalDirectoryListing, LocalDirectoryResponse, DownloadLocalFileResponse } from "@/types";
 import { z } from "zod";
 import fs from 'fs/promises';
+import { constants as fsConstants } from 'fs';
 import path from 'path';
 import { Client, FileInfo } from 'basic-ftp';
 import { Writable } from 'stream'; 
@@ -259,7 +260,7 @@ export async function fetchAndProcessFtpFolder(
                     await client.downloadTo(bufferCollector, fileName);
                     const buffer = bufferCollector.getBuffer();
                                         
-                    addFtpLog(`${logPrefix} Successfully downloaded ${fileName} to buffer (${buffer.length} bytes).`, 'info');
+                    addFtpLog(`${logPrefix} Successfully downloaded ${fileName} to buffer (${buffer.length} bytes).`, 'success');
 
                     const saveResult = await saveLocalFile(serverDetails.localPath, folderConfig.name, fileName, buffer);
                     if (saveResult.success) {
@@ -385,4 +386,61 @@ export async function getLocalDirectoryListing(): Promise<LocalDirectoryResponse
         addFtpLog(`Error reading local directory ${rootPath}: ${error.message}`, 'error');
         return { success: false, error: `Failed to read local directory: ${error.message}`, listing: {} };
     }
+}
+
+
+export async function downloadLocalFile(folderName: string, fileName: string): Promise<DownloadLocalFileResponse> {
+  if (!currentAppConfig || !currentAppConfig.server.localPath) {
+    return { success: false, error: "Application not configured for local file access." };
+  }
+
+  const rootLocalPath = path.resolve(currentAppConfig.server.localPath);
+  const targetFilePath = path.resolve(rootLocalPath, folderName, fileName);
+
+  // Security: Ensure the resolved targetFilePath is still within the intended rootLocalPath
+  if (!targetFilePath.startsWith(rootLocalPath + path.sep)) {
+    addFtpLog(`Security Alert: Attempt to access file outside of configured root path. Requested: ${targetFilePath}`, 'error');
+    return { success: false, error: "Access denied: File path is outside the allowed directory." };
+  }
+
+  try {
+    await fs.access(targetFilePath, fsConstants.F_OK); // Check if file exists
+    const fileBuffer = await fs.readFile(targetFilePath);
+    
+    // Basic content type, can be expanded
+    let contentType = 'application/octet-stream';
+    const ext = path.extname(fileName).toLowerCase();
+    if (ext === '.txt' || ext === '.dat') {
+      contentType = 'text/plain';
+    } else if (ext === '.json') {
+      contentType = 'application/json';
+    } else if (ext === '.xml') {
+        contentType = 'application/xml';
+    } else if (ext === '.pdf') {
+        contentType = 'application/pdf';
+    } else if (ext === '.png') {
+        contentType = 'image/png';
+    } else if (ext === '.jpg' || ext === '.jpeg') {
+        contentType = 'image/jpeg';
+    } else if (ext === '.gif') {
+        contentType = 'image/gif';
+    }
+
+
+    addFtpLog(`Preparing download for local file: ${targetFilePath}`, 'info');
+    return { 
+      success: true, 
+      data: fileBuffer, 
+      contentType: contentType,
+      fileName: fileName 
+    };
+
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      addFtpLog(`File not found for download: ${targetFilePath}`, 'error');
+      return { success: false, error: "File not found." };
+    }
+    addFtpLog(`Error reading file for download ${targetFilePath}: ${error.message}`, 'error');
+    return { success: false, error: `Could not read file: ${error.message}` };
+  }
 }

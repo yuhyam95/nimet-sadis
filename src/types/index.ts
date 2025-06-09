@@ -65,3 +65,13 @@ export interface LocalDirectoryResponse {
   message?: string;
   error?: string;
 }
+
+export interface DownloadLocalFileResponse {
+  success: boolean;
+  data?: Buffer; // File content as Buffer
+  contentType?: string;
+  fileName?: string;
+  error?: string; 
+}
+
+    
