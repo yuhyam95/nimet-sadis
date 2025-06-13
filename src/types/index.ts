@@ -74,4 +74,15 @@ export interface DownloadLocalFileResponse {
   error?: string; 
 }
 
+// User Management Types
+export type UserRole = 'admin' | 'editor' | 'viewer';
+
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+  roles: UserRole[];
+  createdAt: Date;
+  status: 'active' | 'invited' | 'suspended';
+}
     
