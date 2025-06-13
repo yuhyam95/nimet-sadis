@@ -38,7 +38,26 @@ export function FetchedFilesList({ directoryListing, isLoading, selectedFolderNa
     try {
       const result: DownloadLocalFileResponse = await downloadLocalFile(folderName, file.name);
       if (result.success && result.data && result.contentType && result.fileName) {
-        const byteArray = new Uint8Array(result.data);
+        
+        let byteArray: Uint8Array;
+        // Handle how Next.js serializes Buffer from server actions
+        if (typeof result.data === 'object' && (result.data as any).type === 'Buffer' && Array.isArray((result.data as any).data)) {
+          byteArray = new Uint8Array((result.data as any).data);
+        } else if (Array.isArray(result.data)) { 
+          // If it's somehow already an array of numbers (less common for server action Buffer)
+          byteArray = Uint8Array.from(result.data);
+        } else {
+          // Fallback or error if the format is unexpected
+          console.error("Unexpected file data format received from server:", result.data);
+          toast({ title: "Download Failed", description: "Received invalid file data format.", variant: "destructive" });
+          return; // Exit early, finally will still run
+        }
+
+        if (byteArray.length === 0 && file.size > 0) {
+          toast({ title: "Download Failed", description: "File data is empty or could not be processed after conversion.", variant: "destructive" });
+          return; // Exit early, finally will still run
+        }
+        
         const blob = new Blob([byteArray], { type: result.contentType });
         
         const link = document.createElement('a');
@@ -53,6 +72,7 @@ export function FetchedFilesList({ directoryListing, isLoading, selectedFolderNa
         toast({ title: "Download Failed", description: result.error || "Unknown error occurred.", variant: "destructive" });
       }
     } catch (error: any) {
+      console.error("Download error:", error);
       toast({ title: "Download Error", description: error.message || "Could not initiate download.", variant: "destructive" });
     } finally {
       setDownloadingFile(null);
