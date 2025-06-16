@@ -16,9 +16,9 @@ export function AppSidebarNav() {
   const menuItems = [
     { href: '/', label: 'Home', icon: Home, tooltip: 'Go to Homepage' },
     { href: '/ftp-activity', label: 'FTP', icon: Network, tooltip: 'FTP Activity & Fetched Files' },
-    { href: '/user-management', label: 'Users', icon: Users, tooltip: 'Manage Users' }, // Added User Management
     { href: '/api-placeholder', label: 'API', icon: Code, tooltip: 'API Settings (Placeholder)', disabled: true },
     { href: '/logs', label: 'Logs', icon: FileText, tooltip: 'View Logs' },
+    { href: '/user-management', label: 'Users', icon: Users, tooltip: 'Manage Users' }, 
     { href: '/configuration', label: 'Configuration', icon: Settings, tooltip: 'FTP Configuration' },
   ];
 

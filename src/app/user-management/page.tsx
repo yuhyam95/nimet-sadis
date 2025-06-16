@@ -61,7 +61,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const userRoles: UserRole[] = ["admin", "editor", "viewer"];
+const userRoles: UserRole[] = ["admin", "airport manager", "meteorologist"];
+const stations: string[] = ["Lagos", "Abuja", "Kano", "Port Harcourt", "Enugu", "Kaduna"];
 
 const createUserFormSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters."),
@@ -70,6 +71,7 @@ const createUserFormSchema = z.object({
   role: z.enum(userRoles, {
     required_error: "You need to select a user role.",
   }),
+  station: z.string({ required_error: "You need to select a station." }),
 });
 
 type CreateUserFormValues = z.infer<typeof createUserFormSchema>;
@@ -78,27 +80,30 @@ type CreateUserFormValues = z.infer<typeof createUserFormSchema>;
 const initialUsers: User[] = [
   {
     id: "1",
-    username: "alice_admin",
-    email: "alice@example.com",
+    username: "ada_admin",
+    email: "ada@example.com",
     roles: ["admin"],
     createdAt: new Date(2023, 0, 15),
     status: "active",
+    station: "Lagos",
   },
   {
     id: "2",
-    username: "bob_editor",
-    email: "bob@example.com",
-    roles: ["editor"],
+    username: "bola_manager",
+    email: "bola@example.com",
+    roles: ["airport manager"],
     createdAt: new Date(2023, 1, 20),
     status: "active",
+    station: "Abuja",
   },
   {
     id: "3",
-    username: "charlie_viewer",
-    email: "charlie@example.com",
-    roles: ["viewer"],
+    username: "chi_met",
+    email: "chi@example.com",
+    roles: ["meteorologist"],
     createdAt: new Date(2023, 2, 10),
     status: "invited",
+    station: "Kano",
   },
 ];
 
@@ -113,7 +118,8 @@ export default function UserManagementPage() {
       username: "",
       email: "",
       password: "",
-      role: "viewer",
+      role: "meteorologist",
+      station: undefined, // Default to undefined so placeholder shows
     },
   });
 
@@ -124,23 +130,23 @@ export default function UserManagementPage() {
       email: data.email,
       roles: [data.role],
       createdAt: new Date(),
-      status: "active", // Or 'invited' if an invitation flow were implemented
+      status: "active", 
+      station: data.station,
     };
     setUsers((prevUsers) => [newUser, ...prevUsers]);
     toast({
       title: "User Created (Mock)",
-      description: `${newUser.username} has been added to the list. Data is not persisted.`,
+      description: `${newUser.username} has been added. Data is not persisted.`,
     });
     form.reset();
     setIsCreateUserDialogOpen(false);
   };
 
   const handleDeleteUser = (userId: string) => {
-    // Mock deletion
     setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userId));
     toast({
       title: "User Deleted (Mock)",
-      description: `User with ID ${userId} has been removed from the list. Data is not persisted.`,
+      description: `User with ID ${userId} has been removed. Data is not persisted.`,
       variant: "destructive",
     });
   };
@@ -157,7 +163,10 @@ export default function UserManagementPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Dialog open={isCreateUserDialogOpen} onOpenChange={setIsCreateUserDialogOpen}>
+          <Dialog open={isCreateUserDialogOpen} onOpenChange={(isOpen) => {
+            setIsCreateUserDialogOpen(isOpen);
+            if (!isOpen) form.reset(); // Reset form when dialog closes
+          }}>
             <DialogTrigger asChild>
               <Button>
                 <UserPlus className="mr-2 h-5 w-5" />
@@ -227,7 +236,31 @@ export default function UserManagementPage() {
                           <SelectContent>
                             {userRoles.map((role) => (
                               <SelectItem key={role} value={role} className="capitalize">
-                                {role}
+                                {role.charAt(0).toUpperCase() + role.slice(1)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="station"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Station</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a station" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {stations.map((station) => (
+                              <SelectItem key={station} value={station}>
+                                {station}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -270,6 +303,7 @@ export default function UserManagementPage() {
                   <TableHead>Roles</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Joined Date</TableHead>
+                  {/* <TableHead>Station</TableHead> */} {/* Decide if station should be shown here */}
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -288,7 +322,7 @@ export default function UserManagementPage() {
                       <TableCell>
                         {user.roles.map((role) => (
                           <Badge key={role} variant="secondary" className="mr-1 capitalize">
-                            {role}
+                            {role.charAt(0).toUpperCase() + role.slice(1)}
                           </Badge>
                         ))}
                       </TableCell>
@@ -301,6 +335,7 @@ export default function UserManagementPage() {
                         </Badge>
                        </TableCell>
                       <TableCell>{format(user.createdAt, "PP")}</TableCell>
+                      {/* <TableCell>{user.station || 'N/A'}</TableCell> */}
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -316,7 +351,7 @@ export default function UserManagementPage() {
                               }
                             >
                               <Edit3 className="mr-2 h-4 w-4" />
-                              Edit Roles
+                              Edit User
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => handleDeleteUser(user.id)}
@@ -342,3 +377,4 @@ export default function UserManagementPage() {
     </div>
   );
 }
+

@@ -68,14 +68,14 @@ export interface LocalDirectoryResponse {
 
 export interface DownloadLocalFileResponse {
   success: boolean;
-  data?: Buffer; // File content as Buffer
+  data?: Buffer | { type: 'Buffer', data: number[] }; // File content as Buffer or serialized Buffer
   contentType?: string;
   fileName?: string;
   error?: string; 
 }
 
 // User Management Types
-export type UserRole = 'admin' | 'editor' | 'viewer';
+export type UserRole = "admin" | "airport manager" | "meteorologist";
 
 export interface User {
   id: string;
@@ -84,5 +84,6 @@ export interface User {
   roles: UserRole[];
   createdAt: Date;
   status: 'active' | 'invited' | 'suspended';
+  station?: string; 
 }
     
