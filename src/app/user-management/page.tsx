@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -53,16 +53,17 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, Edit3, Trash2, MoreHorizontal } from "lucide-react";
+import { UserPlus, Edit3, Trash2, MoreHorizontal, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { createUserAction, getUsersAction, deleteUserAction, type UserActionResponse } from "@/lib/actions";
 
 const userRoles: UserRole[] = ["admin", "airport manager", "meteorologist"];
-const stations: string[] = ["Lagos", "Abuja", "Kano", "Port Harcourt", "Enugu", "Kaduna"];
+const stations: string[] = ["Lagos", "Abuja", "Kano", "Port Harcourt", "Enugu", "Kaduna", "Maiduguri", "Sokoto", "Ilorin", "Jos"];
 
 const createUserFormSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters."),
@@ -76,40 +77,11 @@ const createUserFormSchema = z.object({
 
 type CreateUserFormValues = z.infer<typeof createUserFormSchema>;
 
-// Mock initial users
-const initialUsers: User[] = [
-  {
-    id: "1",
-    username: "ada_admin",
-    email: "ada@example.com",
-    roles: ["admin"],
-    createdAt: new Date(2023, 0, 15),
-    status: "active",
-    station: "Lagos",
-  },
-  {
-    id: "2",
-    username: "bola_manager",
-    email: "bola@example.com",
-    roles: ["airport manager"],
-    createdAt: new Date(2023, 1, 20),
-    status: "active",
-    station: "Abuja",
-  },
-  {
-    id: "3",
-    username: "chi_met",
-    email: "chi@example.com",
-    roles: ["meteorologist"],
-    createdAt: new Date(2023, 2, 10),
-    status: "invited",
-    station: "Kano",
-  },
-];
-
 export default function UserManagementPage() {
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
+  const [isSubmitting, startSubmitTransition] = useTransition();
   const { toast } = useToast();
 
   const form = useForm<CreateUserFormValues>({
@@ -119,37 +91,73 @@ export default function UserManagementPage() {
       email: "",
       password: "",
       role: "meteorologist",
-      station: undefined, // Default to undefined so placeholder shows
+      station: undefined, 
     },
   });
 
-  const handleCreateUser = (data: CreateUserFormValues) => {
-    const newUser: User = {
-      id: crypto.randomUUID(),
-      username: data.username,
-      email: data.email,
-      roles: [data.role],
-      createdAt: new Date(),
-      status: "active", 
-      station: data.station,
-    };
-    setUsers((prevUsers) => [newUser, ...prevUsers]);
-    toast({
-      title: "User Created (Mock)",
-      description: `${newUser.username} has been added. Data is not persisted.`,
-    });
-    form.reset();
-    setIsCreateUserDialogOpen(false);
+  const fetchUsers = async () => {
+    setIsLoadingUsers(true);
+    const response = await getUsersAction();
+    if (response.success && response.users) {
+      setUsers(response.users);
+    } else {
+      toast({
+        title: "Error Fetching Users",
+        description: response.message || "Could not load users.",
+        variant: "destructive",
+      });
+      setUsers([]); // Clear users on error
+    }
+    setIsLoadingUsers(false);
   };
 
-  const handleDeleteUser = (userId: string) => {
-    setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userId));
-    toast({
-      title: "User Deleted (Mock)",
-      description: `User with ID ${userId} has been removed. Data is not persisted.`,
-      variant: "destructive",
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const handleCreateUser = async (data: CreateUserFormValues) => {
+    startSubmitTransition(async () => {
+      const formData = new FormData();
+      Object.entries(data).forEach(([key, value]) => {
+        formData.append(key, value as string);
+      });
+
+      const response = await createUserAction(formData);
+      if (response.success && response.user) {
+        toast({
+          title: "User Created",
+          description: `${response.user.username} has been added.`,
+        });
+        form.reset();
+        setIsCreateUserDialogOpen(false);
+        fetchUsers(); // Refetch users to include the new one
+      } else {
+        toast({
+          title: "Error Creating User",
+          description: response.message || "Could not create user.",
+          variant: "destructive",
+        });
+      }
     });
   };
+
+  const handleDeleteUser = async (userId: string) => {
+    const response = await deleteUserAction(userId);
+    if (response.success) {
+      toast({
+        title: "User Deleted",
+        description: `User has been removed.`,
+      });
+      fetchUsers(); // Refetch users
+    } else {
+      toast({
+        title: "Error Deleting User",
+        description: response.message || "Could not delete user.",
+        variant: "destructive",
+      });
+    }
+  };
+
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-start p-4 md:p-8 space-y-8 bg-background">
@@ -165,7 +173,7 @@ export default function UserManagementPage() {
         <div className="flex items-center gap-2">
           <Dialog open={isCreateUserDialogOpen} onOpenChange={(isOpen) => {
             setIsCreateUserDialogOpen(isOpen);
-            if (!isOpen) form.reset(); // Reset form when dialog closes
+            if (!isOpen) form.reset(); 
           }}>
             <DialogTrigger asChild>
               <Button>
@@ -189,7 +197,7 @@ export default function UserManagementPage() {
                       <FormItem>
                         <FormLabel>Username</FormLabel>
                         <FormControl>
-                          <Input placeholder="john_doe" {...field} />
+                          <Input placeholder="john_doe" {...field} disabled={isSubmitting} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -202,7 +210,7 @@ export default function UserManagementPage() {
                       <FormItem>
                         <FormLabel>Email</FormLabel>
                         <FormControl>
-                          <Input type="email" placeholder="user@example.com" {...field} />
+                          <Input type="email" placeholder="user@example.com" {...field} disabled={isSubmitting} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -215,7 +223,7 @@ export default function UserManagementPage() {
                       <FormItem>
                         <FormLabel>Password</FormLabel>
                         <FormControl>
-                          <Input type="password" placeholder="••••••••" {...field} />
+                          <Input type="password" placeholder="••••••••" {...field} disabled={isSubmitting} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -227,7 +235,7 @@ export default function UserManagementPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Role</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select a role" />
@@ -251,7 +259,7 @@ export default function UserManagementPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Station</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select a station" />
@@ -271,9 +279,12 @@ export default function UserManagementPage() {
                   />
                   <DialogFooter>
                     <DialogClose asChild>
-                        <Button type="button" variant="outline">Cancel</Button>
+                        <Button type="button" variant="outline" disabled={isSubmitting}>Cancel</Button>
                     </DialogClose>
-                    <Button type="submit">Save User</Button>
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Save User
+                    </Button>
                   </DialogFooter>
                 </form>
               </Form>
@@ -291,26 +302,31 @@ export default function UserManagementPage() {
             <CardTitle>Current Users</CardTitle>
             <CardDescription>
               A list of all users in the system.
-              <span className="block text-xs text-amber-600 mt-1">Note: This is mock data. User creation, edits, and deletions are not persisted.</span>
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {isLoadingUsers ? (
+                <div className="flex justify-center items-center h-24">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="ml-2 text-muted-foreground">Loading users...</p>
+                </div>
+            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Username</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Roles</TableHead>
+                  <TableHead>Station</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Joined Date</TableHead>
-                  {/* <TableHead>Station</TableHead> */} {/* Decide if station should be shown here */}
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {users.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
+                    <TableCell colSpan={7} className="h-24 text-center">
                       No users found.
                     </TableCell>
                   </TableRow>
@@ -326,6 +342,7 @@ export default function UserManagementPage() {
                           </Badge>
                         ))}
                       </TableCell>
+                      <TableCell>{user.station || 'N/A'}</TableCell>
                        <TableCell>
                         <Badge 
                           variant={user.status === 'active' ? 'default' : user.status === 'invited' ? 'outline' : 'destructive'} 
@@ -334,8 +351,7 @@ export default function UserManagementPage() {
                             {user.status}
                         </Badge>
                        </TableCell>
-                      <TableCell>{format(user.createdAt, "PP")}</TableCell>
-                      {/* <TableCell>{user.station || 'N/A'}</TableCell> */}
+                      <TableCell>{format(new Date(user.createdAt), "PP")}</TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -347,7 +363,7 @@ export default function UserManagementPage() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
                               onClick={() =>
-                                toast({ title: "Edit User (Mock)", description: `This would open an edit dialog for ${user.username}.`})
+                                toast({ title: "Edit User (Placeholder)", description: `This would open an edit dialog for ${user.username}. Database integration for edit is not yet implemented.`})
                               }
                             >
                               <Edit3 className="mr-2 h-4 w-4" />
@@ -368,6 +384,7 @@ export default function UserManagementPage() {
                 )}
               </TableBody>
             </Table>
+            )}
           </CardContent>
         </Card>
       </main>
@@ -377,4 +394,3 @@ export default function UserManagementPage() {
     </div>
   );
 }
-

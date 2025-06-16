@@ -1,4 +1,6 @@
 
+import type { ObjectId } from 'mongodb';
+
 export interface FtpServerDetails {
   host: string;
   port: number;
@@ -28,14 +30,6 @@ export interface LogEntry {
 
 export type AppStatus = 'idle' | 'configuring' | 'monitoring' | 'error' | 'connecting' | 'transferring' | 'success';
 
-// This type represents individual entries in the fetched files list on the client (DEPRECATED by LocalDirectoryListing for FetchedFilesList)
-export interface FetchedFileEntry {
-  folderName: string; 
-  fileName: string;
-  timestamp: Date;
-}
-
-// Response from the server action that processes an FTP folder
 export interface FetchFtpFolderResponse {
     success: boolean;
     message: string;
@@ -48,7 +42,6 @@ export interface FetchFtpFolderResponse {
     error?: string; 
 }
 
-// Types for displaying local directory content
 export interface LocalFileEntry {
   name: string;
   size: number; // in bytes
@@ -68,7 +61,7 @@ export interface LocalDirectoryResponse {
 
 export interface DownloadLocalFileResponse {
   success: boolean;
-  data?: Buffer | { type: 'Buffer', data: number[] }; // File content as Buffer or serialized Buffer
+  data?: Buffer | { type: 'Buffer', data: number[] }; 
   contentType?: string;
   fileName?: string;
   error?: string; 
@@ -77,8 +70,9 @@ export interface DownloadLocalFileResponse {
 // User Management Types
 export type UserRole = "admin" | "airport manager" | "meteorologist";
 
+// Type for User data sent to the client (omits password)
 export interface User {
-  id: string;
+  id: string; // string representation of MongoDB _id
   username: string;
   email: string;
   roles: UserRole[];
@@ -86,4 +80,9 @@ export interface User {
   status: 'active' | 'invited' | 'suspended';
   station?: string; 
 }
-    
+
+// Type for User document in MongoDB (includes hashed password)
+export interface UserDocument extends Omit<User, 'id'> {
+  _id?: ObjectId; // MongoDB ObjectId
+  hashedPassword?: string; // Store hashed password, not plain text
+}

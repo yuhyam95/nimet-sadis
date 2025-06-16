@@ -1,13 +1,16 @@
 
 "use server";
 
-import type { AppConfig, FtpServerDetails, MonitoredFolderConfig, LogEntry as AppLogEntry, FetchFtpFolderResponse as ServerFetchResponse, LocalDirectoryListing, LocalDirectoryResponse, DownloadLocalFileResponse } from "@/types";
+import type { AppConfig, FtpServerDetails, MonitoredFolderConfig, LogEntry as AppLogEntry, FetchFtpFolderResponse as ServerFetchResponse, LocalDirectoryListing, LocalDirectoryResponse, DownloadLocalFileResponse, User, UserDocument, UserRole } from "@/types";
 import { z } from "zod";
 import fs from 'fs/promises';
 import { constants as fsConstants } from 'fs';
 import path from 'path';
 import { Client, FileInfo } from 'basic-ftp';
 import { Writable } from 'stream'; 
+import { connectToDatabase } from './db';
+import bcrypt from 'bcryptjs';
+import { ObjectId } from 'mongodb';
 
 const ftpOperationLogs: AppLogEntry[] = [];
 const MAX_FTP_LOGS = 200; 
@@ -356,15 +359,14 @@ export async function getLocalDirectoryListing(): Promise<LocalDirectoryResponse
                     if (files.length > 0) {
                         listing[entry.name] = files.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
                     } else {
-                        listing[entry.name] = []; // Show folder even if empty
+                        listing[entry.name] = []; 
                     }
                 } catch (subDirError: any) {
                      addFtpLog(`Error reading subdirectory ${entry.name}: ${subDirError.message}`, 'error');
-                     listing[entry.name] = []; // Still show folder but mark as potentially problematic or empty
+                     listing[entry.name] = []; 
                 }
             }
         }
-        // Ensure all configured folders appear in the listing, even if they don't exist on disk yet
         configuredFolderNames.forEach(configuredFolderName => {
             if (!listing[configuredFolderName]) {
                 listing[configuredFolderName] = [];
@@ -376,7 +378,6 @@ export async function getLocalDirectoryListing(): Promise<LocalDirectoryResponse
     } catch (error: any) {
         if (error.code === 'ENOENT') {
             addFtpLog(`Root local directory not found: ${rootPath}. It might be created on first download.`, 'info');
-             // If root path doesn't exist, return empty listing for all configured folders
             const emptyListing: LocalDirectoryListing = {};
             currentAppConfig.folders.forEach(folder => {
                 emptyListing[folder.name] = [];
@@ -397,17 +398,15 @@ export async function downloadLocalFile(folderName: string, fileName: string): P
   const rootLocalPath = path.resolve(currentAppConfig.server.localPath);
   const targetFilePath = path.resolve(rootLocalPath, folderName, fileName);
 
-  // Security: Ensure the resolved targetFilePath is still within the intended rootLocalPath
   if (!targetFilePath.startsWith(rootLocalPath + path.sep)) {
     addFtpLog(`Security Alert: Attempt to access file outside of configured root path. Requested: ${targetFilePath}`, 'error');
     return { success: false, error: "Access denied: File path is outside the allowed directory." };
   }
 
   try {
-    await fs.access(targetFilePath, fsConstants.F_OK); // Check if file exists
+    await fs.access(targetFilePath, fsConstants.F_OK); 
     const fileBuffer = await fs.readFile(targetFilePath);
     
-    // Basic content type, can be expanded
     let contentType = 'application/octet-stream';
     const ext = path.extname(fileName).toLowerCase();
     if (ext === '.txt' || ext === '.dat') {
@@ -426,7 +425,6 @@ export async function downloadLocalFile(folderName: string, fileName: string): P
         contentType = 'image/gif';
     }
 
-
     addFtpLog(`Preparing download for local file: ${targetFilePath}`, 'info');
     return { 
       success: true, 
@@ -442,5 +440,128 @@ export async function downloadLocalFile(folderName: string, fileName: string): P
     }
     addFtpLog(`Error reading file for download ${targetFilePath}: ${error.message}`, 'error');
     return { success: false, error: `Could not read file: ${error.message}` };
+  }
+}
+
+// --- User Management Actions ---
+
+export interface UserActionResponse {
+  success: boolean;
+  message: string;
+  user?: User; // For create/update
+  users?: User[]; // For get
+  error?: string;
+}
+
+const userSchema = z.object({
+  username: z.string().min(3, "Username must be at least 3 characters."),
+  email: z.string().email("Invalid email address."),
+  password: z.string().min(6, "Password must be at least 6 characters."),
+  role: z.enum(["admin", "airport manager", "meteorologist"] as [UserRole, ...UserRole[]]),
+  station: z.string().min(1, "Station is required."),
+});
+
+export async function createUserAction(formData: FormData): Promise<UserActionResponse> {
+  const rawData = {
+    username: formData.get('username'),
+    email: formData.get('email'),
+    password: formData.get('password'),
+    role: formData.get('role'),
+    station: formData.get('station'),
+  };
+
+  const validationResult = userSchema.safeParse(rawData);
+
+  if (!validationResult.success) {
+    return { success: false, message: "Validation failed.", error: JSON.stringify(validationResult.error.flatten().fieldErrors) };
+  }
+
+  const { username, email, password, role, station } = validationResult.data;
+
+  try {
+    const { db } = await connectToDatabase();
+    const usersCollection = db.collection<UserDocument>('users');
+
+    const existingUser = await usersCollection.findOne({ $or: [{ email }, { username }] });
+    if (existingUser) {
+      return { success: false, message: "User with this email or username already exists." };
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newUserDocument: UserDocument = {
+      username,
+      email,
+      hashedPassword,
+      roles: [role],
+      station,
+      createdAt: new Date(),
+      status: 'active', 
+    };
+
+    const result = await usersCollection.insertOne(newUserDocument);
+
+    if (!result.insertedId) {
+      return { success: false, message: "Failed to create user in database." };
+    }
+    
+    const createdUser: User = {
+        id: result.insertedId.toString(),
+        username: newUserDocument.username,
+        email: newUserDocument.email,
+        roles: newUserDocument.roles,
+        createdAt: newUserDocument.createdAt,
+        status: newUserDocument.status,
+        station: newUserDocument.station
+    };
+
+    return { success: true, message: "User created successfully.", user: createdUser };
+  } catch (error: any) {
+    console.error("Error creating user:", error);
+    return { success: false, message: "Server error while creating user.", error: error.message };
+  }
+}
+
+export async function getUsersAction(): Promise<UserActionResponse> {
+  try {
+    const { db } = await connectToDatabase();
+    const usersCollection = db.collection<UserDocument>('users');
+    
+    // Fetch users and explicitly exclude the hashedPassword
+    const userDocuments = await usersCollection.find({}, { projection: { hashedPassword: 0 } }).toArray();
+    
+    const users: User[] = userDocuments.map(doc => ({
+      id: doc._id!.toString(), // _id is guaranteed by MongoDB after insert
+      username: doc.username,
+      email: doc.email,
+      roles: doc.roles,
+      createdAt: doc.createdAt,
+      status: doc.status,
+      station: doc.station,
+    }));
+
+    return { success: true, message: "Users fetched successfully.", users };
+  } catch (error: any) {
+    console.error("Error fetching users:", error);
+    return { success: false, message: "Server error while fetching users.", error: error.message };
+  }
+}
+
+export async function deleteUserAction(userId: string): Promise<UserActionResponse> {
+  if (!ObjectId.isValid(userId)) {
+    return { success: false, message: "Invalid user ID format." };
+  }
+  try {
+    const { db } = await connectToDatabase();
+    const usersCollection = db.collection<UserDocument>('users');
+    const result = await usersCollection.deleteOne({ _id: new ObjectId(userId) });
+
+    if (result.deletedCount === 0) {
+      return { success: false, message: "User not found or already deleted." };
+    }
+    return { success: true, message: "User deleted successfully." };
+  } catch (error: any) {
+    console.error("Error deleting user:", error);
+    return { success: false, message: "Server error while deleting user.", error: error.message };
   }
 }
