@@ -82,7 +82,25 @@ export interface User {
 }
 
 // Type for User document in MongoDB (includes hashed password)
-export interface UserDocument extends Omit<User, 'id'> {
+export interface UserDocument extends Omit<User, 'id' | 'roles'> { // roles here will be string[] from DB.
   _id?: ObjectId; // MongoDB ObjectId
   hashedPassword?: string; // Store hashed password, not plain text
+  roles: string[]; // In DB, roles are stored as an array of strings. UserRole type is for client-side type safety.
 }
+
+// If you need more complex Role or Station objects in the future:
+// export interface Role {
+//   _id?: ObjectId;
+//   name: string;
+//   permissions?: string[];
+// }
+
+// export interface Station {
+//   _id?: ObjectId;
+//   name: string;
+//   code?: string;
+//   location?: { lat: number, lon: number };
+// }
+
+
+    

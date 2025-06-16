@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
-import type { User, UserRole } from "@/types";
+import type { User } from "@/types"; // UserRole is defined in types
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,26 +60,30 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { createUserAction, getUsersAction, deleteUserAction, type UserActionResponse } from "@/lib/actions";
+import { createUserAction, getUsersAction, deleteUserAction, getRolesAction, getStationsAction, type UserActionResponse } from "@/lib/actions";
 
-const userRoles: UserRole[] = ["admin", "airport manager", "meteorologist"];
-const stations: string[] = ["Lagos", "Abuja", "Kano", "Port Harcourt", "Enugu", "Kaduna", "Maiduguri", "Sokoto", "Ilorin", "Jos"];
-
+// Zod schema for client-side validation
 const createUserFormSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters."),
   email: z.string().email("Invalid email address."),
   password: z.string().min(6, "Password must be at least 6 characters."),
-  role: z.enum(userRoles, {
-    required_error: "You need to select a user role.",
-  }),
+  confirmPassword: z.string().min(6, "Confirm password must be at least 6 characters."),
+  role: z.string({ required_error: "You need to select a user role."}),
   station: z.string({ required_error: "You need to select a station." }),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"], // path of error
 });
 
 type CreateUserFormValues = z.infer<typeof createUserFormSchema>;
 
 export default function UserManagementPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [rolesList, setRolesList] = useState<string[]>([]);
+  const [stationsList, setStationsList] = useState<string[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [isLoadingRoles, setIsLoadingRoles] = useState(true);
+  const [isLoadingStations, setIsLoadingStations] = useState(true);
   const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
   const [isSubmitting, startSubmitTransition] = useTransition();
   const { toast } = useToast();
@@ -90,36 +94,83 @@ export default function UserManagementPage() {
       username: "",
       email: "",
       password: "",
-      role: "meteorologist",
+      confirmPassword: "",
+      role: undefined,
       station: undefined, 
     },
   });
 
-  const fetchUsers = async () => {
+  const fetchInitialData = async () => {
     setIsLoadingUsers(true);
-    const response = await getUsersAction();
-    if (response.success && response.users) {
-      setUsers(response.users);
-    } else {
-      toast({
-        title: "Error Fetching Users",
-        description: response.message || "Could not load users.",
-        variant: "destructive",
-      });
-      setUsers([]); // Clear users on error
+    setIsLoadingRoles(true);
+    setIsLoadingStations(true);
+
+    try {
+      const [usersResponse, rolesResponse, stationsResponse] = await Promise.all([
+        getUsersAction(),
+        getRolesAction(),
+        getStationsAction(),
+      ]);
+
+      if (usersResponse.success && usersResponse.users) {
+        setUsers(usersResponse.users);
+      } else {
+        toast({
+          title: "Error Fetching Users",
+          description: usersResponse.message || "Could not load users.",
+          variant: "destructive",
+        });
+        setUsers([]);
+      }
+
+      if (rolesResponse.success && rolesResponse.roles) {
+        setRolesList(rolesResponse.roles);
+      } else {
+        toast({
+          title: "Error Fetching Roles",
+          description: rolesResponse.message || "Could not load roles.",
+          variant: "destructive",
+        });
+        setRolesList([]);
+      }
+
+      if (stationsResponse.success && stationsResponse.stations) {
+        setStationsList(stationsResponse.stations);
+      } else {
+        toast({
+          title: "Error Fetching Stations",
+          description: stationsResponse.message || "Could not load stations.",
+          variant: "destructive",
+        });
+        setStationsList([]);
+      }
+
+    } catch (error) {
+       toast({
+          title: "Error Fetching Initial Data",
+          description: "Could not load required data for the page.",
+          variant: "destructive",
+        });
+    } finally {
+      setIsLoadingUsers(false);
+      setIsLoadingRoles(false);
+      setIsLoadingStations(false);
     }
-    setIsLoadingUsers(false);
   };
 
   useEffect(() => {
-    fetchUsers();
+    fetchInitialData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleCreateUser = async (data: CreateUserFormValues) => {
     startSubmitTransition(async () => {
       const formData = new FormData();
+      // We don't send confirmPassword to the backend action, it's for client validation
       Object.entries(data).forEach(([key, value]) => {
-        formData.append(key, value as string);
+        if (key !== 'confirmPassword') {
+            formData.append(key, value as string);
+        }
       });
 
       const response = await createUserAction(formData);
@@ -130,7 +181,7 @@ export default function UserManagementPage() {
         });
         form.reset();
         setIsCreateUserDialogOpen(false);
-        fetchUsers(); // Refetch users to include the new one
+        await fetchInitialData(); // Refetch all data to update lists
       } else {
         toast({
           title: "Error Creating User",
@@ -148,7 +199,7 @@ export default function UserManagementPage() {
         title: "User Deleted",
         description: `User has been removed.`,
       });
-      fetchUsers(); // Refetch users
+      await fetchInitialData(); // Refetch users
     } else {
       toast({
         title: "Error Deleting User",
@@ -176,7 +227,7 @@ export default function UserManagementPage() {
             if (!isOpen) form.reset(); 
           }}>
             <DialogTrigger asChild>
-              <Button>
+              <Button disabled={isLoadingRoles || isLoadingStations}>
                 <UserPlus className="mr-2 h-5 w-5" />
                 Add New User
               </Button>
@@ -189,7 +240,7 @@ export default function UserManagementPage() {
                 </DialogDescription>
               </DialogHeader>
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(handleCreateUser)} className="space-y-6 py-4">
+                <form onSubmit={form.handleSubmit(handleCreateUser)} className="space-y-4 py-4"> {/* Reduced space-y for denser form */}
                   <FormField
                     control={form.control}
                     name="username"
@@ -231,18 +282,31 @@ export default function UserManagementPage() {
                   />
                   <FormField
                     control={form.control}
+                    name="confirmPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Confirm Password</FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="••••••••" {...field} disabled={isSubmitting} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
                     name="role"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Role</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting || isLoadingRoles}>
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder="Select a role" />
+                              <SelectValue placeholder={isLoadingRoles ? "Loading roles..." : "Select a role"} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {userRoles.map((role) => (
+                            {!isLoadingRoles && rolesList.map((role) => (
                               <SelectItem key={role} value={role} className="capitalize">
                                 {role.charAt(0).toUpperCase() + role.slice(1)}
                               </SelectItem>
@@ -259,14 +323,14 @@ export default function UserManagementPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Station</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting || isLoadingStations}>
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder="Select a station" />
+                              <SelectValue placeholder={isLoadingStations ? "Loading stations..." : "Select a station"} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {stations.map((station) => (
+                            {!isLoadingStations && stationsList.map((station) => (
                               <SelectItem key={station} value={station}>
                                 {station}
                               </SelectItem>
@@ -281,7 +345,7 @@ export default function UserManagementPage() {
                     <DialogClose asChild>
                         <Button type="button" variant="outline" disabled={isSubmitting}>Cancel</Button>
                     </DialogClose>
-                    <Button type="submit" disabled={isSubmitting}>
+                    <Button type="submit" disabled={isSubmitting || isLoadingRoles || isLoadingStations}>
                       {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       Save User
                     </Button>
@@ -336,9 +400,9 @@ export default function UserManagementPage() {
                       <TableCell className="font-medium">{user.username}</TableCell>
                       <TableCell>{user.email}</TableCell>
                       <TableCell>
-                        {user.roles.map((role) => (
-                          <Badge key={role} variant="secondary" className="mr-1 capitalize">
-                            {role.charAt(0).toUpperCase() + role.slice(1)}
+                        {user.roles.map((roleItem) => ( // role changed to roleItem to avoid conflict
+                          <Badge key={roleItem} variant="secondary" className="mr-1 capitalize">
+                            {roleItem.charAt(0).toUpperCase() + roleItem.slice(1)}
                           </Badge>
                         ))}
                       </TableCell>
@@ -394,3 +458,6 @@ export default function UserManagementPage() {
     </div>
   );
 }
+
+
+    

@@ -448,18 +448,23 @@ export async function downloadLocalFile(folderName: string, fileName: string): P
 export interface UserActionResponse {
   success: boolean;
   message: string;
-  user?: User; // For create/update
-  users?: User[]; // For get
+  user?: User;
+  users?: User[];
+  roles?: string[]; // For getRolesAction
+  stations?: string[]; // For getStationsAction
   error?: string;
 }
 
-const userSchema = z.object({
+// Zod schema for server-side validation of user creation data
+const createUserServerSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters."),
   email: z.string().email("Invalid email address."),
   password: z.string().min(6, "Password must be at least 6 characters."),
-  role: z.enum(["admin", "airport manager", "meteorologist"] as [UserRole, ...UserRole[]]),
-  station: z.string().min(1, "Station is required."),
+  // confirmPassword is not needed by the server action itself, only for client-side form validation
+  role: z.string().min(1, "Role is required."), // Validated against DB if necessary during action
+  station: z.string().min(1, "Station is required."), // Validated against DB if necessary
 });
+
 
 export async function createUserAction(formData: FormData): Promise<UserActionResponse> {
   const rawData = {
@@ -470,10 +475,10 @@ export async function createUserAction(formData: FormData): Promise<UserActionRe
     station: formData.get('station'),
   };
 
-  const validationResult = userSchema.safeParse(rawData);
+  const validationResult = createUserServerSchema.safeParse(rawData);
 
   if (!validationResult.success) {
-    return { success: false, message: "Validation failed.", error: JSON.stringify(validationResult.error.flatten().fieldErrors) };
+    return { success: false, message: "Validation failed on server.", error: JSON.stringify(validationResult.error.flatten().fieldErrors) };
   }
 
   const { username, email, password, role, station } = validationResult.data;
@@ -481,6 +486,10 @@ export async function createUserAction(formData: FormData): Promise<UserActionRe
   try {
     const { db } = await connectToDatabase();
     const usersCollection = db.collection<UserDocument>('users');
+    // Optionally, validate role and station against their respective collections here
+    // For example:
+    // const roleExists = await db.collection('roles').findOne({ name: role });
+    // if (!roleExists) return { success: false, message: "Invalid role selected." };
 
     const existingUser = await usersCollection.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
@@ -493,7 +502,7 @@ export async function createUserAction(formData: FormData): Promise<UserActionRe
       username,
       email,
       hashedPassword,
-      roles: [role],
+      roles: [role as UserRole], // Assuming role string is a valid UserRole
       station,
       createdAt: new Date(),
       status: 'active', 
@@ -527,11 +536,10 @@ export async function getUsersAction(): Promise<UserActionResponse> {
     const { db } = await connectToDatabase();
     const usersCollection = db.collection<UserDocument>('users');
     
-    // Fetch users and explicitly exclude the hashedPassword
     const userDocuments = await usersCollection.find({}, { projection: { hashedPassword: 0 } }).toArray();
     
     const users: User[] = userDocuments.map(doc => ({
-      id: doc._id!.toString(), // _id is guaranteed by MongoDB after insert
+      id: doc._id!.toString(), 
       username: doc.username,
       email: doc.email,
       roles: doc.roles,
@@ -565,3 +573,31 @@ export async function deleteUserAction(userId: string): Promise<UserActionRespon
     return { success: false, message: "Server error while deleting user.", error: error.message };
   }
 }
+
+export async function getRolesAction(): Promise<UserActionResponse> {
+  try {
+    const { db } = await connectToDatabase();
+    const rolesCollection = db.collection<{ name: string }>('roles'); // Assuming roles docs have a 'name' field
+    const roleDocuments = await rolesCollection.find({}).toArray();
+    const roles = roleDocuments.map(doc => doc.name);
+    return { success: true, message: "Roles fetched successfully.", roles };
+  } catch (error: any) {
+    console.error("Error fetching roles:", error);
+    return { success: false, message: "Server error while fetching roles.", error: error.message, roles: [] };
+  }
+}
+
+export async function getStationsAction(): Promise<UserActionResponse> {
+  try {
+    const { db } = await connectToDatabase();
+    const stationsCollection = db.collection<{ name: string }>('stations'); // Assuming station docs have a 'name' field
+    const stationDocuments = await stationsCollection.find({}).toArray();
+    const stations = stationDocuments.map(doc => doc.name);
+    return { success: true, message: "Stations fetched successfully.", stations };
+  } catch (error: any) {
+    console.error("Error fetching stations:", error);
+    return { success: false, message: "Server error while fetching stations.", error: error.message, stations: [] };
+  }
+}
+
+    
