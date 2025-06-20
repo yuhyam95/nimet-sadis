@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useTransition } from 'react';
@@ -9,23 +8,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AlertCircle, LogIn, Loader2 } from 'lucide-react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 
 
 export default function LoginPage() {
     const [isPending, startTransition] = useTransition();
-    const router = useRouter();
     const { toast } = useToast();
 
     const handleSubmit = (formData: FormData) => {
         startTransition(async () => {
             const result = await loginAction(formData);
-            if (result.success) {
-                toast({ title: 'Login Successful', description: 'Welcome back!' });
-                router.push('/');
-                router.refresh(); // Recommended to refresh router cache
-            } else {
+            // If the action returns a result, it's an error because
+            // a successful login will redirect and never return here.
+            if (result && !result.success) {
                  toast({
                     title: 'Login Failed',
                     description: result.message,

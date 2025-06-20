@@ -609,7 +609,7 @@ const loginSchema = z.object({
     password: z.string().min(1, "Password is required."),
 });
 
-export async function loginAction(formData: FormData): Promise<{ success: boolean; message?: string }> {
+export async function loginAction(formData: FormData): Promise<{ success: false; message: string } | void> {
     const validatedFields = loginSchema.safeParse({
         email: formData.get('email'),
         password: formData.get('password'),
@@ -643,7 +643,7 @@ export async function loginAction(formData: FormData): Promise<{ success: boolea
         return { success: false, message: "An error occurred during login." };
     }
 
-    return { success: true };
+    redirect('/');
 }
 
 export async function logoutAction() {
