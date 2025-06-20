@@ -37,7 +37,7 @@ export default async function ProtectedLayout({
             </div>
           </SidebarHeader>
           <SidebarContent>
-            <AppSidebarNav />
+            <AppSidebarNav session={session} />
           </SidebarContent>
           <SidebarFooter className="p-2 flex flex-col gap-2">
             <div className="flex items-center gap-3 p-2 rounded-md bg-muted/50 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:size-10">

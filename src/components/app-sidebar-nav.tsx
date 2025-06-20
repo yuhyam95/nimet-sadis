@@ -8,24 +8,37 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from '@/components/ui/sidebar';
-import { Network, Code, Settings, FileText, Home, Users } from 'lucide-react'; // Added Users
+import { Network, Code, Settings, FileText, Home, Users } from 'lucide-react';
+import type { SessionPayload } from '@/types';
 
-export function AppSidebarNav() {
+interface AppSidebarNavProps {
+  session: SessionPayload | null;
+}
+
+export function AppSidebarNav({ session }: AppSidebarNavProps) {
   const pathname = usePathname();
 
-  const menuItems = [
+  const allMenuItems = [
     { href: '/', label: 'Home', icon: Home, tooltip: 'Go to Homepage' },
     { href: '/ftp-activity', label: 'FTP', icon: Network, tooltip: 'FTP Activity & Fetched Files' },
     { href: '/api-placeholder', label: 'API', icon: Code, tooltip: 'API Settings (Placeholder)', disabled: true },
-    { href: '/logs', label: 'Logs', icon: FileText, tooltip: 'View Logs' },
-    { href: '/user-management', label: 'Users', icon: Users, tooltip: 'Manage Users' }, 
-    { href: '/configuration', label: 'Configuration', icon: Settings, tooltip: 'FTP Configuration' },
+    { href: '/logs', label: 'Logs', icon: FileText, tooltip: 'View Logs', requiredRoles: ['admin'] },
+    { href: '/user-management', label: 'Users', icon: Users, tooltip: 'Manage Users', requiredRoles: ['admin'] }, 
+    { href: '/configuration', label: 'Configuration', icon: Settings, tooltip: 'FTP Configuration', requiredRoles: ['admin'] },
   ];
+
+  const menuItems = allMenuItems.filter(item => {
+    if (!item.requiredRoles) {
+      return true; // Item is visible to all authenticated users
+    }
+    // Check if the user has at least one of the required roles
+    return item.requiredRoles.some(role => session?.roles.includes(role));
+  });
 
   return (
     <SidebarMenu>
       {menuItems.map((item) => (
-        <SidebarMenuItem key={item.label}> {/* Changed key to item.label as hrefs can be duplicated if not careful */}
+        <SidebarMenuItem key={item.label}>
           {item.disabled ? (
             <SidebarMenuButton tooltip={item.tooltip} disabled>
               <item.icon />
@@ -38,7 +51,7 @@ export function AppSidebarNav() {
                 tooltip={item.tooltip}
                 isActive={pathname === item.href || (item.href === '/' && pathname.startsWith('/?'))} 
               >
-                <a> {/* This <a> is important for asChild with next/link legacyBehavior */}
+                <a>
                   <item.icon />
                   <span>{item.label}</span>
                 </a>
@@ -50,4 +63,3 @@ export function AppSidebarNav() {
     </SidebarMenu>
   );
 }
-

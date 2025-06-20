@@ -2,27 +2,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { decrypt } from '@/lib/auth';
 
-// 1. Specify public routes
 const publicRoutes = ['/login'];
+const adminRoutes = ['/configuration', '/logs', '/user-management'];
 
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
-
-  // 2. Check if the current route is public
   const isPublicRoute = publicRoutes.includes(path);
+  const isAdminRoute = adminRoutes.some(route => path.startsWith(route));
 
-  // 3. Decrypt the session from the cookie
   const cookie = req.cookies.get('session')?.value;
   const session = await decrypt(cookie);
 
-  // 4. Redirect to /login if the user is not authenticated and the route is not public
+  // Redirect unauthenticated users from protected routes
   if (!session && !isPublicRoute) {
     return NextResponse.redirect(new URL('/login', req.nextUrl));
   }
 
-  // 5. Redirect to / if the user is authenticated and tries to access a public route
+  // Redirect authenticated users from public routes
   if (session && isPublicRoute) {
     return NextResponse.redirect(new URL('/', req.nextUrl));
+  }
+
+  // Role-based access control for admin routes
+  if (session && isAdminRoute) {
+    const userRoles = session.roles || [];
+    if (!userRoles.includes('admin')) {
+      // Redirect non-admins to the dashboard homepage
+      return NextResponse.redirect(new URL('/', req.nextUrl));
+    }
   }
 
   return NextResponse.next();
