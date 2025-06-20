@@ -7,10 +7,19 @@ import type { SessionPayload } from '@/types';
 
 // IMPORTANT: Set this in your .env.local file
 // You can generate a good secret with: `openssl rand -base64 32`
-const secretKey = process.env.SESSION_SECRET;
+let secretKey = process.env.SESSION_SECRET;
 
 if (!secretKey) {
-  throw new Error('SESSION_SECRET environment variable is not set. Please add it to your .env.local file.');
+  secretKey = 'this-is-a-temporary-and-insecure-secret-key-for-development';
+  console.warn(
+    '\n' +
+    '******************************************************************************************\n' +
+    '** WARNING: SESSION_SECRET is not set in your .env.local file.                        **\n' +
+    '** Using a default, insecure key for development purposes.                            **\n' +
+    '** For production, please generate a strong secret and add it to your .env.local file.**\n' +
+    '** Example: `openssl rand -base64 32`                                                 **\n' +
+    '******************************************************************************************\n'
+  );
 }
 
 const key = new TextEncoder().encode(secretKey);
