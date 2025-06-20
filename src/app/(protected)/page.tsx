@@ -1,34 +1,43 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { getAppStatusAndLogs } from "@/lib/actions";
-import type { AppConfig } from "@/types";
+import { getSession } from "@/lib/auth";
+import type { AppConfig, SessionPayload } from "@/types";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Network, Code, PlayCircle } from "lucide-react";
+import { Network, Code, PlayCircle, Loader2 } from "lucide-react";
 
 export default function HomePage() {
   const [config, setConfig] = useState<AppConfig | null>(null);
-  const [isLoadingConfig, setIsLoadingConfig] = useState(true);
+  const [session, setSession] = useState<SessionPayload | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchConfigStatus() {
-      setIsLoadingConfig(true);
+    async function fetchInitialData() {
+      setIsLoading(true);
       try {
-        const { config: serverConfig } = await getAppStatusAndLogs();
-        setConfig(serverConfig);
+        const [statusResponse, sessionData] = await Promise.all([
+          getAppStatusAndLogs(),
+          getSession()
+        ]);
+        setConfig(statusResponse.config);
+        setSession(sessionData);
       } catch (error) {
-        console.error("Failed to fetch initial app status for home page:", error);
+        console.error("Failed to fetch initial data for home page:", error);
         setConfig(null);
+        setSession(null);
       } finally {
-        setIsLoadingConfig(false);
+        setIsLoading(false);
       }
     }
-    fetchConfigStatus();
+    fetchInitialData();
   }, []);
+
+  const isAdmin = session?.roles?.includes('admin') ?? false;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-start p-4 md:p-8 space-y-8 bg-background">
@@ -83,13 +92,14 @@ export default function HomePage() {
           </Card>
         </div>
         
-        {isLoadingConfig && (
+        {isLoading && (
           <div className="flex justify-center items-center p-8">
-            <p className="text-muted-foreground">Loading configuration status...</p>
+             <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <p className="ml-3 text-muted-foreground">Loading dashboard...</p>
           </div>
         )}
 
-        {!isLoadingConfig && !config && (
+        {!isLoading && !config && isAdmin && (
           <Card className="shadow-lg border-primary/50">
             <CardHeader>
               <CardTitle className="flex items-center text-2xl">
