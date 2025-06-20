@@ -25,10 +25,10 @@ if (!secretKey) {
 const key = new TextEncoder().encode(secretKey);
 
 export async function encrypt(payload: any) {
+  // The token no longer has a built-in expiration time.
   return new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('1d') // 1 day session
     .sign(key);
 }
 
@@ -47,15 +47,15 @@ export async function decrypt(session: string | undefined = ''): Promise<Session
 }
 
 export async function createSession(userId: string, username: string, roles: string[]) {
-  const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 1 day from now
   const sessionPayload: SessionPayload = { userId, username, roles };
 
   const session = await encrypt(sessionPayload);
 
+  // By not setting `expires`, the cookie becomes a session cookie.
+  // It will be deleted when the browser is closed.
   cookies().set('session', session, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    expires: expires,
     sameSite: 'lax',
     path: '/',
   });
