@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'NiMet-SADIS-Ingest',
+  title: 'NiMet-SADIS',
   description: 'Automated SADIS FTP File Ingestion and Local Transfer by Firebase Studio',
 };
 

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useTransition } from 'react';
@@ -38,7 +39,7 @@ export default function LoginPage() {
                 </div>
                 <Card>
                     <CardHeader className="text-center">
-                        <CardTitle className="text-2xl">NiMet-SADIS-Ingest</CardTitle>
+                        <CardTitle className="text-2xl">NiMet-SADIS</CardTitle>
                         <CardDescription>Enter your credentials to access the dashboard</CardDescription>
                     </CardHeader>
                     <form action={handleSubmit}>
@@ -61,7 +62,7 @@ export default function LoginPage() {
                     </form>
                 </Card>
                  <footer className="w-full text-center text-sm text-muted-foreground mt-8">
-                    <p>&copy; {new Date().getFullYear()} NiMet-SADIS-Ingest. Login.</p>
+                    <p>&copy; {new Date().getFullYear()} NiMet-SADIS. Login.</p>
                 </footer>
             </div>
         </div>

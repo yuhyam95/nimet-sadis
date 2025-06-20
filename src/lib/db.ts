@@ -4,7 +4,7 @@ import type { UserDocument } from '@/types';
 import bcrypt from 'bcryptjs';
 
 const MONGODB_URI = process.env.MONGODB_URI;
-const DB_NAME = process.env.DB_NAME || 'nimet_sadis_ingest_db'; // You can set a default DB name or use an env var
+const DB_NAME = process.env.DB_NAME || 'nimet_sadis_db'; // You can set a default DB name or use an env var
 
 if (!MONGODB_URI) {
   throw new Error(

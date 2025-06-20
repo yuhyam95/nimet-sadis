@@ -85,7 +85,7 @@ export default function LogsPage() {
         )}
       </main>
       <footer className="w-full max-w-3xl text-center text-sm text-muted-foreground mt-8">
-        <p>&copy; {new Date().getFullYear()} NiMet-SADIS-Ingest. FTP Logs Viewer.</p>
+        <p>&copy; {new Date().getFullYear()} NiMet-SADIS. FTP Logs Viewer.</p>
       </footer>
     </div>
   );

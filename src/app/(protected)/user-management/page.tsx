@@ -453,7 +453,7 @@ export default function UserManagementPage() {
         </Card>
       </main>
       <footer className="w-full max-w-5xl text-center text-sm text-muted-foreground mt-8">
-        <p>&copy; {new Date().getFullYear()} NiMet-SADIS-Ingest. User Management.</p>
+        <p>&copy; {new Date().getFullYear()} NiMet-SADIS. User Management.</p>
       </footer>
     </div>
   );

@@ -44,7 +44,7 @@ export default function HomePage() {
       <header className="w-full max-w-4xl flex items-center justify-between">
         <div className="text-center md:text-left">
             <h1 className="text-4xl font-bold text-primary tracking-tight">
-            Welcome to NiMet-SADIS-Ingest
+            Welcome to NiMet-SADIS
             </h1>
             <p className="text-muted-foreground mt-2 text-lg">
             Automated SADIS FTP file ingestion and local transfer. Select an option below or use the sidebar.
@@ -122,7 +122,7 @@ export default function HomePage() {
         )}
       </main>
        <footer className="w-full max-w-4xl text-center text-sm text-muted-foreground mt-8">
-        <p>&copy; {new Date().getFullYear()} NiMet-SADIS-Ingest. Dashboard.</p>
+        <p>&copy; {new Date().getFullYear()} NiMet-SADIS. Dashboard.</p>
       </footer>
     </div>
   );
