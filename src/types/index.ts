@@ -92,7 +92,6 @@ export interface SessionPayload {
   userId: string;
   username: string;
   roles: string[];
-  expiresAt: Date;
 }
 
 

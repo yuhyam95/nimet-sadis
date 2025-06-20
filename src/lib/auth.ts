@@ -47,15 +47,15 @@ export async function decrypt(session: string | undefined = ''): Promise<Session
 }
 
 export async function createSession(userId: string, username: string, roles: string[]) {
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 1 day from now
-  const sessionPayload: Omit<SessionPayload, 'expiresAt'> & { expiresAt: Date } = { userId, username, roles, expiresAt };
+  const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 1 day from now
+  const sessionPayload: SessionPayload = { userId, username, roles };
 
   const session = await encrypt(sessionPayload);
 
   cookies().set('session', session, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    expires: expiresAt,
+    expires: expires,
     sameSite: 'lax',
     path: '/',
   });
