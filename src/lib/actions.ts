@@ -609,14 +609,14 @@ const loginSchema = z.object({
     password: z.string().min(1, "Password is required."),
 });
 
-export async function loginAction(prevState: any, formData: FormData): Promise<{ message: string; }> {
+export async function loginAction(formData: FormData): Promise<{ success: boolean; message?: string }> {
     const validatedFields = loginSchema.safeParse({
         email: formData.get('email'),
         password: formData.get('password'),
     });
 
     if (!validatedFields.success) {
-        return { message: "Invalid email or password format." };
+        return { success: false, message: "Invalid email or password format." };
     }
     
     const { email, password } = validatedFields.data;
@@ -627,23 +627,23 @@ export async function loginAction(prevState: any, formData: FormData): Promise<{
         const user = await usersCollection.findOne({ email });
 
         if (!user || !user.hashedPassword) {
-            return { message: "Invalid credentials." };
+            return { success: false, message: "Invalid credentials." };
         }
 
         const passwordsMatch = await bcrypt.compare(password, user.hashedPassword);
 
         if (!passwordsMatch) {
-            return { message: "Invalid credentials." };
+            return { success: false, message: "Invalid credentials." };
         }
 
         await createSession(user._id!.toString(), user.username, user.roles);
 
     } catch (error) {
         console.error("Login error:", error);
-        return { message: "An error occurred during login." };
+        return { success: false, message: "An error occurred during login." };
     }
 
-    redirect('/'); // Redirect to dashboard on successful login
+    return { success: true };
 }
 
 export async function logoutAction() {
