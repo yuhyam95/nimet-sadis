@@ -3,15 +3,6 @@ import type {Metadata} from 'next';
 import {Geist, Geist_Mono} from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarHeader,
-  SidebarInset,
-  SidebarProvider,
-} from '@/components/ui/sidebar';
-import Image from 'next/image'; // Import next/image
-import { AppSidebarNav } from '@/components/app-sidebar-nav';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -34,32 +25,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <SidebarProvider defaultOpen={true}>
-          <Sidebar side="left" collapsible="icon" variant="sidebar">
-            <SidebarHeader className="p-4 flex flex-col items-center group-data-[collapsible=icon]:items-start">
-              <div
-                className="mb-4 flex items-center justify-center group-data-[collapsible=icon]:justify-start group-data-[collapsible=icon]:px-0.5 group-data-[collapsible=icon]:w-full cursor-default"
-              >
-                <Image
-                  src="https://nimet.gov.ng/assets/img/logo.png"
-                  alt="NiMet-SADIS-Ingest Logo"
-                  width={40}
-                  height={40}
-                  className="h-10 w-10 object-contain"
-                />
-              </div>
-            </SidebarHeader>
-            <SidebarContent>
-              <AppSidebarNav />
-            </SidebarContent>
-          </Sidebar>
-          <SidebarInset>
-            {children}
-            <Toaster />
-          </SidebarInset>
-        </SidebarProvider>
+        {children}
+        <Toaster />
       </body>
     </html>
   );

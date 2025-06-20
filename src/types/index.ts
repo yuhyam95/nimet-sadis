@@ -88,6 +88,14 @@ export interface UserDocument extends Omit<User, 'id' | 'roles'> { // roles here
   roles: string[]; // In DB, roles are stored as an array of strings. UserRole type is for client-side type safety.
 }
 
+export interface SessionPayload {
+  userId: string;
+  username: string;
+  roles: string[];
+  expiresAt: Date;
+}
+
+
 // If you need more complex Role or Station objects in the future:
 // export interface Role {
 //   _id?: ObjectId;
@@ -101,6 +109,3 @@ export interface UserDocument extends Omit<User, 'id' | 'roles'> { // roles here
 //   code?: string;
 //   location?: { lat: number, lon: number };
 // }
-
-
-    

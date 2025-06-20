@@ -11,6 +11,8 @@ import { Writable } from 'stream';
 import { connectToDatabase } from './db';
 import bcrypt from 'bcryptjs';
 import { ObjectId } from 'mongodb';
+import { createSession, deleteSession } from './auth';
+import { redirect } from 'next/navigation';
 
 const ftpOperationLogs: AppLogEntry[] = [];
 const MAX_FTP_LOGS = 200; 
@@ -600,4 +602,51 @@ export async function getStationsAction(): Promise<UserActionResponse> {
   }
 }
 
+// --- Auth Actions ---
+
+const loginSchema = z.object({
+    email: z.string().email("Invalid email address."),
+    password: z.string().min(1, "Password is required."),
+});
+
+export async function loginAction(prevState: any, formData: FormData): Promise<{ message: string; }> {
+    const validatedFields = loginSchema.safeParse({
+        email: formData.get('email'),
+        password: formData.get('password'),
+    });
+
+    if (!validatedFields.success) {
+        return { message: "Invalid email or password format." };
+    }
     
+    const { email, password } = validatedFields.data;
+
+    try {
+        const { db } = await connectToDatabase();
+        const usersCollection = db.collection<UserDocument>('users');
+        const user = await usersCollection.findOne({ email });
+
+        if (!user || !user.hashedPassword) {
+            return { message: "Invalid credentials." };
+        }
+
+        const passwordsMatch = await bcrypt.compare(password, user.hashedPassword);
+
+        if (!passwordsMatch) {
+            return { message: "Invalid credentials." };
+        }
+
+        await createSession(user._id!.toString(), user.username, user.roles);
+
+    } catch (error) {
+        console.error("Login error:", error);
+        return { message: "An error occurred during login." };
+    }
+
+    redirect('/'); // Redirect to dashboard on successful login
+}
+
+export async function logoutAction() {
+    await deleteSession();
+    redirect('/login');
+}
