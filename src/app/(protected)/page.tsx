@@ -4,7 +4,8 @@
 import { useState, useEffect } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { getSession, getAppStatusAndLogs } from "@/lib/actions";
+import { getAppStatusAndLogs } from "@/lib/actions";
+import { getSession } from "@/lib/auth";
 import type { AppConfig, SessionPayload } from "@/types";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
