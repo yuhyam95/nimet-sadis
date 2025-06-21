@@ -3,41 +3,31 @@
 
 import React, { useState, useEffect } from "react";
 import { getAppStatusAndLogs } from "@/lib/actions";
-import { getSession } from "@/lib/auth";
-import type { AppConfig, SessionPayload } from "@/types";
+import type { AppConfig } from "@/types";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { PlayCircle, Loader2, Cloud, AlertTriangle, MountainSnow, Tornado } from "lucide-react";
+import { Loader2, Cloud, AlertTriangle, MountainSnow, Tornado } from "lucide-react";
 
 export default function HomePage() {
   const [config, setConfig] = useState<AppConfig | null>(null);
-  const [session, setSession] = useState<SessionPayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function fetchInitialData() {
       setIsLoading(true);
       try {
-        const [statusResponse, sessionData] = await Promise.all([
-          getAppStatusAndLogs(),
-          getSession()
-        ]);
+        const statusResponse = await getAppStatusAndLogs();
         setConfig(statusResponse.config);
-        setSession(sessionData);
       } catch (error) {
         console.error("Failed to fetch initial data for home page:", error);
         setConfig(null);
-        setSession(null);
       } finally {
         setIsLoading(false);
       }
     }
     fetchInitialData();
   }, []);
-
-  const isAdmin = session?.roles?.includes('admin') ?? false;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-start p-4 md:p-8 space-y-8 bg-background">
@@ -123,28 +113,6 @@ export default function HomePage() {
              <Loader2 className="h-6 w-6 animate-spin text-primary" />
             <p className="ml-3 text-muted-foreground">Loading dashboard...</p>
           </div>
-        )}
-
-        {!isLoading && !config && isAdmin && (
-          <Card className="shadow-lg border-primary/50">
-            <CardHeader>
-              <CardTitle className="flex items-center text-2xl">
-                <PlayCircle className="mr-3 h-7 w-7 text-primary" />
-                Get Started
-              </CardTitle>
-              <CardDescription>
-                No FTP configuration found. Set up your FTP details to begin monitoring and fetching files.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="mb-4 text-sm text-muted-foreground">
-                Navigate to the Configuration page to input your FTP server credentials, paths, and monitoring preferences.
-              </p>
-              <Link href="/configuration" passHref>
-                <Button className="w-full">Go to Configuration</Button>
-              </Link>
-            </CardContent>
-          </Card>
         )}
       </main>
        <footer className="w-full max-w-4xl text-center text-sm text-muted-foreground mt-8">
