@@ -9,7 +9,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Network, Code, PlayCircle, Loader2 } from "lucide-react";
+import { PlayCircle, Loader2, Cloud, AlertTriangle, MountainSnow, Hurricane } from "lucide-react";
 
 export default function HomePage() {
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -60,34 +60,60 @@ export default function HomePage() {
           <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
             <CardHeader>
               <CardTitle className="flex items-center text-2xl">
-                <Network className="mr-3 h-7 w-7 text-primary" />
-                FTP Files & Activity
+                <Cloud className="mr-3 h-7 w-7 text-primary" />
+                OPMET
               </CardTitle>
               <CardDescription>
-                View recently fetched files, monitor FTP server activity, and manage transfers.
+                Access operational meteorological information like METAR, TAF, and SPECI.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Link href="/ftp-activity" passHref>
-                <Button className="w-full">Go to FTP Activity</Button>
-              </Link>
+              <Button className="w-full" disabled>View OPMET Data</Button>
             </CardContent>
           </Card>
 
           <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
             <CardHeader>
               <CardTitle className="flex items-center text-2xl">
-                <Code className="mr-3 h-7 w-7 text-primary" />
-                API Management
+                <AlertTriangle className="mr-3 h-7 w-7 text-primary" />
+                SIGMET
               </CardTitle>
               <CardDescription>
-                Configure API endpoints and manage integrations. (Placeholder for future functionality)
+                Monitor significant meteorological phenomena hazardous to aviation.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Link href="/api-placeholder" passHref>
-                <Button className="w-full" disabled>Go to API Settings</Button>
-              </Link>
+              <Button className="w-full" disabled>View SIGMETs</Button>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
+            <CardHeader>
+              <CardTitle className="flex items-center text-2xl">
+                <MountainSnow className="mr-3 h-7 w-7 text-primary" />
+                Volcanic Ash Products
+              </CardTitle>
+              <CardDescription>
+                Access advisories and graphics for volcanic ash clouds.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" disabled>View Volcanic Ash Data</Button>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
+            <CardHeader>
+              <CardTitle className="flex items-center text-2xl">
+                <Hurricane className="mr-3 h-7 w-7 text-primary" />
+                Tropical Cyclone Products
+              </CardTitle>
+              <CardDescription>
+                Track and view advisories for tropical cyclones and hurricanes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" disabled>View Cyclone Data</Button>
             </CardContent>
           </Card>
         </div>
