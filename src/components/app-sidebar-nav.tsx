@@ -24,8 +24,6 @@ export function AppSidebarNav({ session }: AppSidebarNavProps) {
     { href: '/sigmet', label: 'SIGMET', icon: AlertTriangle, tooltip: 'View SIGMETs' },
     { href: '/volcanic-ash', label: 'Volcanic Ash', icon: MountainSnow, tooltip: 'View Volcanic Ash Data' },
     { href: '/tropical-cyclone', label: 'Cyclones', icon: Tornado, tooltip: 'View Tropical Cyclone Data' },
-    { href: '/ftp-activity', label: 'FTP', icon: Network, tooltip: 'FTP Activity & Fetched Files' },
-    { href: '/api-placeholder', label: 'API', icon: Code, tooltip: 'API Settings (Placeholder)', disabled: true },
     { href: '/logs', label: 'Logs', icon: FileText, tooltip: 'View Logs', requiredRoles: ['admin'] },
     { href: '/user-management', label: 'Users', icon: Users, tooltip: 'Manage Users', requiredRoles: ['admin'] }, 
     { href: '/configuration', label: 'Configuration', icon: Settings, tooltip: 'FTP Configuration', requiredRoles: ['admin'] },
