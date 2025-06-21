@@ -9,7 +9,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { PlayCircle, Loader2, Cloud, AlertTriangle, MountainSnow, Hurricane } from "lucide-react";
+import { PlayCircle, Loader2, Cloud, AlertTriangle, MountainSnow, Tornado } from "lucide-react";
 
 export default function HomePage() {
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -105,7 +105,7 @@ export default function HomePage() {
           <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
             <CardHeader>
               <CardTitle className="flex items-center text-2xl">
-                <Hurricane className="mr-3 h-7 w-7 text-primary" />
+                <Tornado className="mr-3 h-7 w-7 text-primary" />
                 Tropical Cyclone Products
               </CardTitle>
               <CardDescription>
