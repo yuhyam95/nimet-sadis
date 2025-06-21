@@ -8,7 +8,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from '@/components/ui/sidebar';
-import { Network, Code, Settings, FileText, Home, Users } from 'lucide-react';
+import { Network, Code, Settings, FileText, Home, Users, Cloud, AlertTriangle, MountainSnow, Tornado } from 'lucide-react';
 import type { SessionPayload } from '@/types';
 
 interface AppSidebarNavProps {
@@ -20,6 +20,10 @@ export function AppSidebarNav({ session }: AppSidebarNavProps) {
 
   const allMenuItems = [
     { href: '/', label: 'Home', icon: Home, tooltip: 'Go to Homepage' },
+    { href: '/opmet', label: 'OPMET', icon: Cloud, tooltip: 'View OPMET Data' },
+    { href: '/sigmet', label: 'SIGMET', icon: AlertTriangle, tooltip: 'View SIGMETs' },
+    { href: '/volcanic-ash', label: 'Volcanic Ash', icon: MountainSnow, tooltip: 'View Volcanic Ash Data' },
+    { href: '/tropical-cyclone', label: 'Cyclones', icon: Tornado, tooltip: 'View Tropical Cyclone Data' },
     { href: '/ftp-activity', label: 'FTP', icon: Network, tooltip: 'FTP Activity & Fetched Files' },
     { href: '/api-placeholder', label: 'API', icon: Code, tooltip: 'API Settings (Placeholder)', disabled: true },
     { href: '/logs', label: 'Logs', icon: FileText, tooltip: 'View Logs', requiredRoles: ['admin'] },
