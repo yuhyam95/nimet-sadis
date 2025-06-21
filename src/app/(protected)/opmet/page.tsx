@@ -129,6 +129,7 @@ export default function OpmetPage() {
             isLoading={isLoadingLocalFiles}
             selectedFolderName={selectedFolderNameForView}
             onSelectFolder={handleSelectFolderForView}
+            title="OPMET Products"
         />
       </main>
        <footer className="w-full max-w-3xl text-center text-sm text-muted-foreground mt-8">

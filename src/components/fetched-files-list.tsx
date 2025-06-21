@@ -17,6 +17,7 @@ interface FetchedFilesListProps {
   isLoading: boolean;
   selectedFolderName: string | null;
   onSelectFolder: (folderName: string | null) => void;
+  title: string;
 }
 
 function formatBytes(bytes: number, decimals = 2) {
@@ -28,7 +29,7 @@ function formatBytes(bytes: number, decimals = 2) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
-export function FetchedFilesList({ directoryListing, isLoading, selectedFolderName, onSelectFolder }: FetchedFilesListProps) {
+export function FetchedFilesList({ directoryListing, isLoading, selectedFolderName, onSelectFolder, title }: FetchedFilesListProps) {
   const { toast } = useToast();
   const [downloadingFile, setDownloadingFile] = useState<string | null>(null); 
 
@@ -85,11 +86,11 @@ export function FetchedFilesList({ directoryListing, isLoading, selectedFolderNa
         <CardHeader>
           <CardTitle className="flex items-center text-2xl">
             <HardDriveDownload className="mr-2 h-6 w-6 text-primary" />
-            Locally Stored Files
+            {title}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground text-center py-4">Loading local files...</p>
+          <p className="text-muted-foreground text-center py-4">Loading files...</p>
         </CardContent>
       </Card>
     );
@@ -101,7 +102,7 @@ export function FetchedFilesList({ directoryListing, isLoading, selectedFolderNa
         <CardHeader>
           <CardTitle className="flex items-center text-2xl">
             <HardDriveDownload className="mr-2 h-6 w-6 text-primary" />
-            Locally Stored Files
+            {title}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -178,7 +179,7 @@ export function FetchedFilesList({ directoryListing, isLoading, selectedFolderNa
       <CardHeader>
         <CardTitle className="flex items-center text-2xl">
           <HardDriveDownload className="mr-2 h-6 w-6 text-primary" />
-          Locally Stored Folders
+          {title}
         </CardTitle>
         <CardDescription>
           Click on a folder to view its files.

@@ -131,6 +131,7 @@ export default function FtpActivityPage() {
             isLoading={isLoadingLocalFiles}
             selectedFolderName={selectedFolderNameForView}
             onSelectFolder={handleSelectFolderForView}
+            title="Locally Stored Files"
         />
       </main>
        <footer className="w-full max-w-3xl text-center text-sm text-muted-foreground mt-8">
