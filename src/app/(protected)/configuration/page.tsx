@@ -1,76 +1,108 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { FileFetcherForm } from "@/components/file-fetcher-form";
-import type { AppConfig, LogEntry, AppStatus } from "@/types"; // Changed FtpConfig to AppConfig
-import { getAppStatusAndLogs } from "@/lib/actions";
+import React, { useState, useEffect, useTransition } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Settings, Loader2, Save } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import type { AppConfig } from "@/types";
+import { submitConfiguration, getAppStatusAndLogs } from "@/lib/actions";
 
+const formSchema = z.object({
+  opmetPath: z.string().min(1, "OPMET path is required."),
+  sigmetPath: z.string().min(1, "SIGMET path is required."),
+  volcanicAshPath: z.string().min(1, "Volcanic Ash path is required."),
+  tropicalCyclonePath: z.string().min(1, "Tropical Cyclone path is required."),
+});
+
+type FormValues = z.infer<typeof formSchema>;
 
 export default function ConfigurationPage() {
-  const [config, setConfig] = useState<AppConfig | null>(null); // Changed FtpConfig to AppConfig
-  const [formLogs, setFormLogs] = useState<LogEntry[]>([]);
-  const [isMonitoring, setIsMonitoring] = useState<boolean>(false);
+  const [isSubmitting, startSubmitTransition] = useTransition();
   const [pageStatus, setPageStatus] = useState<"loading" | "ready" | "error">("loading");
+  const { toast } = useToast();
 
-  const addFormLog = useCallback((newLog: Omit<LogEntry, 'id' | 'timestamp'>) => {
-    setFormLogs((prevLogs) => [
-      { ...newLog, id: crypto.randomUUID(), timestamp: new Date() },
-      ...prevLogs,
-    ].slice(0, 10));
-  }, []); 
-
-  const handleConfigChange = useCallback((newConfig: AppConfig) => { // Changed FtpConfig to AppConfig
-    setConfig(newConfig);
-  }, []); 
-
-  const stableSetIsMonitoring = useCallback((monitoringState: boolean) => {
-    setIsMonitoring(monitoringState);
-  }, []); 
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      opmetPath: "",
+      sigmetPath: "",
+      volcanicAshPath: "",
+      tropicalCyclonePath: "",
+    },
+  });
 
   useEffect(() => {
-    let isMounted = true;
-    async function fetchInitialData() {
-      if (!isMounted) return;
+    async function fetchConfig() {
       setPageStatus("loading");
       try {
-        const { status, config: serverConfig } = await getAppStatusAndLogs(); // serverConfig is AppConfig | null
-        if (!isMounted) return;
-
-        if (serverConfig) {
-          setConfig(serverConfig);
-          setIsMonitoring(status === 'monitoring'); // status is AppStatus, this is fine
-          addFormLog({ message: "Successfully loaded existing configuration.", type: 'info' });
+        const { config } = await getAppStatusAndLogs();
+        if (config) {
+          form.reset(config);
         } else {
-          addFormLog({ message: "No existing configuration found. Please enter new details.", type: 'info' });
+            toast({
+                title: "No Configuration Found",
+                description: "Loading default values. Please review and save.",
+                variant: "default",
+            });
         }
-        if (isMounted) setPageStatus("ready");
+        setPageStatus("ready");
       } catch (error) {
-        if (!isMounted) return;
-        addFormLog({ message: "Failed to load initial configuration.", type: 'error' });
-        if (isMounted) setPageStatus("error");
+        toast({
+          title: "Error Loading Configuration",
+          description: "Could not retrieve the current folder paths.",
+          variant: "destructive",
+        });
+        setPageStatus("error");
       }
     }
-    fetchInitialData();
+    fetchConfig();
+  }, [form, toast]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [addFormLog]);
 
+  const onSubmit = (data: FormValues) => {
+    startSubmitTransition(async () => {
+        const formData = new FormData();
+        Object.entries(data).forEach(([key, value]) => {
+            formData.append(key, value as string);
+        });
+        
+        const result = await submitConfiguration(null, formData);
+
+        if (result.success) {
+            toast({
+                title: "Configuration Saved",
+                description: result.message,
+            });
+            if(result.config) {
+                form.reset(result.config);
+            }
+        } else {
+            toast({
+                title: "Error Saving Configuration",
+                description: result.message || "An unknown error occurred.",
+                variant: "destructive",
+            });
+        }
+    });
+  };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-start p-4 md:p-8 space-y-8 bg-background">
       <header className="w-full max-w-3xl flex items-center justify-between">
         <div className="text-center md:text-left">
           <h1 className="text-4xl font-bold text-primary tracking-tight">
-            FTP Configuration
+            Local Folder Configuration
           </h1>
           <p className="text-muted-foreground mt-2 text-lg">
-            Setup and manage your FTP connection and monitoring settings.
+            Set the local directory paths for each data product.
           </p>
         </div>
         <div className="md:hidden">
@@ -79,29 +111,87 @@ export default function ConfigurationPage() {
       </header>
 
       <main className="w-full max-w-3xl space-y-8">
-        {pageStatus === "loading" && <p>Loading configuration...</p>}
-        {pageStatus === "error" && (
-            <Card className="border-destructive">
-                <CardHeader>
-                    <CardTitle className="flex items-center text-destructive">
-                        <AlertTriangle className="mr-2"/> Error Loading Configuration
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p>Could not retrieve the current FTP configuration. Please try refreshing the page. If the problem persists, check server logs.</p>
-                </CardContent>
+        {pageStatus === 'loading' && <p>Loading configuration...</p>}
+        {pageStatus === 'error' && <p>Error loading configuration. Please refresh.</p>}
+        {pageStatus === 'ready' && (
+             <Card className="w-full shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center text-2xl">
+                  <Settings className="mr-2 h-6 w-6 text-primary" />
+                  Product Folder Paths
+                </CardTitle>
+                <CardDescription>
+                  Specify the absolute or relative paths on the server where files for each product are stored.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                    <FormField
+                      control={form.control}
+                      name="opmetPath"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>OPMET Path</FormLabel>
+                          <FormControl>
+                            <Input placeholder="/path/to/opmet_files" {...field} disabled={isSubmitting} />
+                          </FormControl>
+                           <FormDescription>Folder containing OPMET data.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="sigmetPath"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>SIGMET Path</FormLabel>
+                          <FormControl>
+                            <Input placeholder="/path/to/sigmet_files" {...field} disabled={isSubmitting} />
+                          </FormControl>
+                          <FormDescription>Folder containing SIGMET data.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="volcanicAshPath"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Volcanic Ash Path</FormLabel>
+                          <FormControl>
+                            <Input placeholder="/path/to/volcanic_ash_files" {...field} disabled={isSubmitting} />
+                          </FormControl>
+                          <FormDescription>Folder containing Volcanic Ash data.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                     <FormField
+                      control={form.control}
+                      name="tropicalCyclonePath"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tropical Cyclone Path</FormLabel>
+                          <FormControl>
+                            <Input placeholder="/path/to/tropical_cyclone_files" {...field} disabled={isSubmitting} />
+                          </FormControl>
+                          <FormDescription>Folder containing Tropical Cyclone data.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                      Save Configuration
+                    </Button>
+                  </form>
+                </Form>
+              </CardContent>
             </Card>
         )}
-        {pageStatus === "ready" && (
-          <FileFetcherForm
-            onConfigChange={handleConfigChange} 
-            addLog={addFormLog}
-            initialConfig={config || undefined} // config is now AppConfig | null
-            isCurrentlyMonitoring={isMonitoring}
-            setIsCurrentlyMonitoring={stableSetIsMonitoring}
-          />
-        )}
-        
       </main>
       <footer className="w-full max-w-3xl text-center text-sm text-muted-foreground mt-8">
         <p>&copy; {new Date().getFullYear()} NiMet-SADIS. Configuration Management.</p>

@@ -1,24 +1,11 @@
 
 import type { ObjectId } from 'mongodb';
 
-export interface FtpServerDetails {
-  host: string;
-  port: number;
-  username: string;
-  password?: string;
-  localPath: string; // Root local path for all downloads
-}
-
-export interface MonitoredFolderConfig {
-  id: string; // For useFieldArray key and tracking
-  name: string; // User-friendly name for this folder configuration
-  remotePath: string;
-  interval: number; // Polling interval in minutes for this specific folder
-}
-
 export interface AppConfig {
-  server: FtpServerDetails;
-  folders: MonitoredFolderConfig[];
+  opmetPath: string;
+  sigmetPath: string;
+  volcanicAshPath: string;
+  tropicalCyclonePath: string;
 }
 
 export interface LogEntry {
@@ -28,19 +15,7 @@ export interface LogEntry {
   type: 'info' | 'error' | 'success' | 'warning';
 }
 
-export type AppStatus = 'idle' | 'configuring' | 'monitoring' | 'error' | 'connecting' | 'transferring' | 'success';
-
-export interface FetchFtpFolderResponse {
-    success: boolean;
-    message: string;
-    folderName: string;
-    processedFiles: { 
-        name: string; 
-        status: 'download_success' | 'download_failed' | 'skipped_isDirectory' | 'skipped_unknown_type' | 'save_success' | 'save_failed' | 'simulated_save_success'; 
-        error?: string 
-    }[];
-    error?: string; 
-}
+export type AppStatus = 'idle' | 'error' | 'ok';
 
 export interface LocalFileEntry {
   name: string;
@@ -93,18 +68,3 @@ export interface SessionPayload {
   username: string;
   roles: string[];
 }
-
-
-// If you need more complex Role or Station objects in the future:
-// export interface Role {
-//   _id?: ObjectId;
-//   name: string;
-//   permissions?: string[];
-// }
-
-// export interface Station {
-//   _id?: ObjectId;
-//   name: string;
-//   code?: string;
-//   location?: { lat: number, lon: number };
-// }

@@ -1,69 +1,40 @@
 
 "use server";
 
-import type { AppConfig, FtpServerDetails, MonitoredFolderConfig, LogEntry as AppLogEntry, FetchFtpFolderResponse as ServerFetchResponse, LocalDirectoryListing, LocalDirectoryResponse, DownloadLocalFileResponse, User, UserDocument, UserRole } from "@/types";
+import type { AppConfig, LogEntry as AppLogEntry, LocalDirectoryListing, LocalDirectoryResponse, DownloadLocalFileResponse, User, UserDocument, UserRole } from "@/types";
 import { z } from "zod";
 import fs from 'fs/promises';
 import { constants as fsConstants } from 'fs';
 import path from 'path';
-import { Client, FileInfo } from 'basic-ftp';
-import { Writable } from 'stream'; 
 import { connectToDatabase } from './db';
 import bcrypt from 'bcryptjs';
 import { ObjectId } from 'mongodb';
 import { createSession, deleteSession } from './auth';
 import { redirect } from 'next/navigation';
 
-const ftpOperationLogs: AppLogEntry[] = [];
-const MAX_FTP_LOGS = 200; 
+const operationLogs: AppLogEntry[] = [];
+const MAX_LOGS = 200; 
 
-function addFtpLog(message: string, type: AppLogEntry['type']) {
+function addLog(message: string, type: AppLogEntry['type']) {
   const newLog: AppLogEntry = {
     id: crypto.randomUUID(),
     timestamp: new Date(),
     message,
     type,
   };
-  ftpOperationLogs.unshift(newLog); 
-  if (ftpOperationLogs.length > MAX_FTP_LOGS) {
-    ftpOperationLogs.length = MAX_FTP_LOGS; 
+  operationLogs.unshift(newLog); 
+  if (operationLogs.length > MAX_LOGS) {
+    operationLogs.length = MAX_LOGS; 
   }
 }
 
-class BufferCollector extends Writable {
-    private chunks: Buffer[] = [];
-    constructor(options?: any) {
-        super(options);
-    }
-    _write(chunk: any, encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
-        this.chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding));
-        callback();
-    }
-    getBuffer(): Buffer {
-        return Buffer.concat(this.chunks);
-    }
-}
-
-
-const ftpServerDetailsSchema = z.object({
-  host: z.string().min(1, "Host is required"),
-  port: z.coerce.number().int().positive("Port must be a positive integer"),
-  username: z.string().min(1, "Username is required"),
-  password: z.string().optional(),
-  localPath: z.string().min(1, "Root local path is required"),
-});
-
-const monitoredFolderConfigSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1, "Folder name is required"),
-  remotePath: z.string().min(1, "Remote path is required").refine(val => val.startsWith('/'), { message: "Remote path must start with /"}),
-  interval: z.coerce.number().int().min(1, "Interval must be at least 1 minute"),
-});
-
 const appConfigSchema = z.object({
-  server: ftpServerDetailsSchema,
-  folders: z.array(monitoredFolderConfigSchema).min(1, "At least one monitored folder is required"),
+  opmetPath: z.string().min(1, "OPMET path is required."),
+  sigmetPath: z.string().min(1, "SIGMET path is required."),
+  volcanicAshPath: z.string().min(1, "Volcanic Ash path is required."),
+  tropicalCyclonePath: z.string().min(1, "Tropical Cyclone path is required."),
 });
+
 
 export interface ActionResponse {
   success: boolean;
@@ -72,46 +43,32 @@ export interface ActionResponse {
   errorDetails?: Record<string, any>;
 }
 
-let isMonitoringActive = false;
 let currentAppConfig: AppConfig | null = null;
+const defaultPaths: AppConfig = {
+    opmetPath: 'local_storage/opmet',
+    sigmetPath: 'local_storage/sigmet',
+    volcanicAshPath: 'local_storage/volcanic_ash',
+    tropicalCyclonePath: 'local_storage/tropical_cyclone',
+};
+if (!currentAppConfig) {
+    currentAppConfig = defaultPaths;
+}
 
 export async function submitConfiguration(
   prevState: ActionResponse | null,
   formData: FormData
 ): Promise<ActionResponse> {
-  const rawServerData = {
-    host: formData.get("host"),
-    port: formData.get("port"),
-    username: formData.get("username"),
-    password: formData.get("password"),
-    localPath: formData.get("localPath"),
-  };
-
-  const foldersJson = formData.get("foldersJson") as string | null;
-  let parsedFolders: any[] = [];
-
-  if (foldersJson) {
-    try {
-      parsedFolders = JSON.parse(foldersJson);
-    } catch (error) {
-      addFtpLog("Error parsing foldersJson: " + (error instanceof Error ? error.message : String(error)), 'error');
-      return {
-        success: false,
-        message: "Invalid format for folder configurations.",
-        errorDetails: { folders: "Could not parse folder data." },
-      };
-    }
-  }
-
-  const combinedConfig = {
-    server: rawServerData,
-    folders: parsedFolders,
+  const rawData = {
+    opmetPath: formData.get("opmetPath"),
+    sigmetPath: formData.get("sigmetPath"),
+    volcanicAshPath: formData.get("volcanicAshPath"),
+    tropicalCyclonePath: formData.get("tropicalCyclonePath"),
   };
   
-  const validationResult = appConfigSchema.safeParse(combinedConfig);
+  const validationResult = appConfigSchema.safeParse(rawData);
 
   if (!validationResult.success) {
-    addFtpLog("Configuration validation failed: " + JSON.stringify(validationResult.error.flatten().fieldErrors), 'error');
+    addLog("Configuration validation failed.", 'error');
     return {
       success: false,
       message: "Validation failed. Please check your inputs.",
@@ -121,287 +78,111 @@ export async function submitConfiguration(
 
   const newConfig = validationResult.data;
   currentAppConfig = newConfig;
-  isMonitoringActive = true; 
 
-  addFtpLog(`New configuration submitted and applied for host: ${newConfig.server.host}. Monitoring active.`, 'info');
+  addLog(`New local folder configuration saved.`, 'success');
 
   try {
-    await fs.mkdir(path.resolve(newConfig.server.localPath), { recursive: true });
-    addFtpLog(`Ensured root local path exists: ${newConfig.server.localPath}`, 'info');
+      for (const pathValue of Object.values(newConfig)) {
+          await fs.mkdir(path.resolve(pathValue), { recursive: true });
+      }
+      addLog('Verified all configured local directories exist.', 'info');
   } catch (error: any) {
-    addFtpLog(`Could not create/verify root local path ${newConfig.server.localPath}: ${error.message}`, 'warning');
+      addLog(`Could not create/verify a local directory: ${error.message}`, 'warning');
   }
+
 
   return {
     success: true,
-    message: "Configuration applied. Monitoring is active. Check FTP Activity page.",
+    message: "Configuration saved successfully.",
     config: newConfig,
   };
 }
 
-export async function toggleMonitoring(start: boolean): Promise<ActionResponse> {
-  if (start && !currentAppConfig) {
-    isMonitoringActive = false;
-    addFtpLog("Attempted to start monitoring without active configuration.", 'warning');
-    return {
-      success: false,
-      message: "Cannot start monitoring. Configuration is missing.",
-    };
-  }
-
-  isMonitoringActive = start;
-  const statusMessage = start ? "Monitoring enabled." : "Monitoring disabled.";
-  addFtpLog(`Monitoring explicitly ${start ? 'enabled' : 'disabled'}.`, 'info');
-  
-  return {
-    success: true,
-    message: statusMessage,
-    config: currentAppConfig ?? undefined,
-  };
-}
-
-export async function getAppStatusAndLogs(): Promise<{ status: 'monitoring' | 'idle' | 'error' | 'configuring' | 'connecting' | 'transferring' | 'success', logs: AppLogEntry[], config: AppConfig | null }> {
-    let currentOverallStatus: 'monitoring' | 'idle' | 'error' | 'configuring' | 'connecting' | 'transferring' | 'success' = 'idle';
-    if (isMonitoringActive) {
-        currentOverallStatus = 'monitoring'; 
-    }
-    if (!currentAppConfig && isMonitoringActive) {
-        currentOverallStatus = 'configuring'; 
-    } else if (!currentAppConfig) {
-        currentOverallStatus = 'idle';
-    }
-    
+export async function getAppStatusAndLogs(): Promise<{ status: 'idle' | 'ok' | 'error', logs: AppLogEntry[], config: AppConfig | null }> {
     await new Promise(resolve => setTimeout(resolve, 50)); 
     return {
-        status: currentOverallStatus,
-        logs: [...ftpOperationLogs], 
+        status: currentAppConfig ? 'ok' : 'idle',
+        logs: [...operationLogs], 
         config: currentAppConfig,
     };
 }
 
 
-async function saveLocalFile(
-  rootLocalPath: string,
-  targetSubFolder: string,
-  fileName: string,
-  content: Buffer
-): Promise<{ success: boolean; message: string; fullPath?: string }> {
-  if (!rootLocalPath || !targetSubFolder || !fileName) {
-    const missingMsg = "Root local path, target subfolder, or filename missing for saving file.";
-    addFtpLog(missingMsg, 'error');
-    return { success: false, message: missingMsg };
-  }
-  try {
-    const resolvedRootPath = path.resolve(rootLocalPath);
-    const fullDirectoryPath = path.join(resolvedRootPath, targetSubFolder);
-    
-    await fs.mkdir(fullDirectoryPath, { recursive: true });
-    
-    const fullFilePath = path.join(fullDirectoryPath, fileName);
-    await fs.writeFile(fullFilePath, content);
-    
-    const successMsg = `File '${fileName}' saved to ${fullDirectoryPath}.`;
-    return { success: true, message: successMsg, fullPath: fullFilePath };
-  } catch (error: any) {
-    const errorMsg = `Failed to save file '${fileName}' to '${targetSubFolder}' in '${rootLocalPath}': ${error.message}. Check permissions.`;
-    addFtpLog(errorMsg, 'error');
-    return { 
-      success: false, 
-      message: errorMsg 
-    };
-  }
-}
-
-
-export async function fetchAndProcessFtpFolder(
-    serverDetails: FtpServerDetails,
-    folderConfig: MonitoredFolderConfig
-): Promise<ServerFetchResponse> {
-    const client = new Client(15000); 
-    client.ftp.verbose = true; 
-    const processedFiles: ServerFetchResponse['processedFiles'] = [];
-    const logPrefix = `FTP Folder [${folderConfig.name}]:`;
-
-    let cleanHost = serverDetails.host;
-    cleanHost = cleanHost.replace(/^(ftp:\/\/|http:\/\/|https:\/\/)/i, '');
-    const slashIndex = cleanHost.indexOf('/');
-    if (slashIndex !== -1) {
-        cleanHost = cleanHost.substring(0, slashIndex);
-    }
-
-    try {
-        addFtpLog(`${logPrefix} Attempting to connect to ${cleanHost}:${serverDetails.port}`, 'info');
-        await client.access({
-            host: cleanHost,
-            port: serverDetails.port,
-            user: serverDetails.username,
-            password: serverDetails.password,
-            secure: false 
-        });
-        addFtpLog(`${logPrefix} Connected to ${cleanHost}. Navigating to remote path: ${folderConfig.remotePath}`, 'info');
-        
-        await client.cd(folderConfig.remotePath);
-        const ftpFiles: FileInfo[] = await client.list();
-        addFtpLog(`${logPrefix} Found ${ftpFiles.length} items in ${folderConfig.remotePath}.`, 'info');
-
-        if (ftpFiles.length === 0) {
-            client.close();
-            return {
-                success: true,
-                folderName: folderConfig.name,
-                message: `No files found in ${folderConfig.remotePath}.`,
-                processedFiles: []
-            };
-        }
-
-        let filesDownloadedCount = 0;
-        for (const fileInfo of ftpFiles) {
-            if (fileInfo.type === 1) { 
-                const fileName = fileInfo.name;
-                try {
-                    addFtpLog(`${logPrefix} Attempting to download actual file: ${fileName} (${fileInfo.size} bytes)`, 'info');
-                    
-                    const bufferCollector = new BufferCollector();
-                    await client.downloadTo(bufferCollector, fileName);
-                    const buffer = bufferCollector.getBuffer();
-                                        
-                    addFtpLog(`${logPrefix} Successfully downloaded ${fileName} to buffer (${buffer.length} bytes).`, 'success');
-
-                    const saveResult = await saveLocalFile(serverDetails.localPath, folderConfig.name, fileName, buffer);
-                    if (saveResult.success) {
-                        processedFiles.push({ name: fileName, status: 'save_success' });
-                        addFtpLog(`${logPrefix} File '${fileName}' (actual content) saved successfully to ${saveResult.fullPath}.`, 'success');
-                        filesDownloadedCount++;
-                    } else {
-                        processedFiles.push({ name: fileName, status: 'save_failed', error: saveResult.message });
-                        addFtpLog(`${logPrefix} Failed to save actual file '${fileName}': ${saveResult.message}`, 'error');
-                    }
-                } catch (downloadError: any) {
-                    let errMsg = downloadError.message || "Unknown download error";
-                    if (downloadError.code) {
-                        errMsg += ` (code: ${downloadError.code})`;
-                    }
-                    const detailedErrorMsg = `${logPrefix} Failed to download file '${fileName}'. Error: ${errMsg}.`;
-                    addFtpLog(detailedErrorMsg, 'error');
-                    processedFiles.push({ name: fileName, status: 'download_failed', error: errMsg });
-                }
-            } else if (fileInfo.type === 2) { 
-                 addFtpLog(`${logPrefix} Skipping item '${fileInfo.name}', as it is a directory.`, 'info');
-                 processedFiles.push({ name: fileInfo.name, status: 'skipped_isDirectory' });
-            } else {
-                 addFtpLog(`${logPrefix} Skipping item '${fileInfo.name}' (type: ${fileInfo.type}), not a regular file or directory.`, 'warning');
-                 processedFiles.push({ name: fileInfo.name, status: 'skipped_unknown_type' });
-            }
-        }
-        const finalMessage = `${logPrefix} Processed ${ftpFiles.length} items. Successfully downloaded and saved ${filesDownloadedCount} actual files.`;
-        addFtpLog(finalMessage, filesDownloadedCount > 0 || ftpFiles.length === 0 ? 'success' : 'warning');
-        client.close();
-        return {
-            success: true,
-            folderName: folderConfig.name,
-            message: finalMessage,
-            processedFiles
-        };
-
-    } catch (err: any) {
-        const errorMsg = `${logPrefix} Error processing FTP folder ${folderConfig.remotePath}: ${err.message} (connecting to ${cleanHost}, code: ${err.code || 'N/A'})`;
-        addFtpLog(errorMsg, 'error');
-        if (!client.closed) {
-            client.close();
-        }
-        return {
-            success: false,
-            folderName: folderConfig.name,
-            message: errorMsg,
-            processedFiles, 
-            error: err.message
-        };
-    } finally {
-        if (!client.closed) {
-            addFtpLog(`${logPrefix} Ensuring FTP connection is closed in finally block.`, 'info');
-            await client.close(); 
-        }
-    }
-}
-
 export async function getLocalDirectoryListing(): Promise<LocalDirectoryResponse> {
-    if (!currentAppConfig || !currentAppConfig.server.localPath) {
-        addFtpLog("Cannot get local directory listing: No active configuration or local path.", 'warning');
-        return { success: false, message: "No active configuration with a local path.", listing: {} };
+    if (!currentAppConfig) {
+        addLog("Cannot get local directory listing: No active configuration.", 'warning');
+        return { success: false, message: "No active configuration.", listing: {} };
     }
 
-    const rootPath = path.resolve(currentAppConfig.server.localPath);
     const listing: LocalDirectoryListing = {};
+    const pathMapping = {
+        'OPMET Products': currentAppConfig.opmetPath,
+        'SIGMET Products': currentAppConfig.sigmetPath,
+        'Volcanic Ash Products': currentAppConfig.volcanicAshPath,
+        'Tropical Cyclone Products': currentAppConfig.tropicalCyclonePath,
+    };
 
-    try {
-        const configuredFolderNames = new Set(currentAppConfig.folders.map(f => f.name));
-        const entries = await fs.readdir(rootPath, { withFileTypes: true });
+    for (const [productName, productPath] of Object.entries(pathMapping)) {
+        try {
+            const resolvedPath = path.resolve(productPath);
+            const files: (import("@/types").LocalFileEntry)[] = [];
+            const fileEntries = await fs.readdir(resolvedPath, { withFileTypes: true });
 
-        for (const entry of entries) {
-            if (entry.isDirectory() && configuredFolderNames.has(entry.name)) {
-                const folderPath = path.join(rootPath, entry.name);
-                const files: (import("@/types").LocalFileEntry)[] = [];
-                try {
-                    const fileEntries = await fs.readdir(folderPath, { withFileTypes: true });
-                    for (const fileEntry of fileEntries) {
-                        if (fileEntry.isFile()) {
-                            try {
-                                const filePath = path.join(folderPath, fileEntry.name);
-                                const stats = await fs.stat(filePath);
-                                files.push({
-                                    name: fileEntry.name,
-                                    size: stats.size,
-                                    lastModified: stats.mtime,
-                                });
-                            } catch (statError: any) {
-                                addFtpLog(`Error stating file ${fileEntry.name} in ${entry.name}: ${statError.message}`, 'error');
-                            }
-                        }
+            for (const fileEntry of fileEntries) {
+                if (fileEntry.isFile()) {
+                    try {
+                        const filePath = path.join(resolvedPath, fileEntry.name);
+                        const stats = await fs.stat(filePath);
+                        files.push({
+                            name: fileEntry.name,
+                            size: stats.size,
+                            lastModified: stats.mtime,
+                        });
+                    } catch (statError: any) {
+                        addLog(`Error stating file ${fileEntry.name} in ${productName} folder: ${statError.message}`, 'error');
                     }
-                    if (files.length > 0) {
-                        listing[entry.name] = files.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
-                    } else {
-                        listing[entry.name] = []; 
-                    }
-                } catch (subDirError: any) {
-                     addFtpLog(`Error reading subdirectory ${entry.name}: ${subDirError.message}`, 'error');
-                     listing[entry.name] = []; 
                 }
             }
-        }
-        configuredFolderNames.forEach(configuredFolderName => {
-            if (!listing[configuredFolderName]) {
-                listing[configuredFolderName] = [];
+            listing[productName] = files.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+        } catch (error: any) {
+            if (error.code === 'ENOENT') {
+                addLog(`Directory not found for ${productName}: ${productPath}. It might be created on config save.`, 'info');
+                listing[productName] = [];
+            } else {
+                addLog(`Error reading directory for ${productName} (${productPath}): ${error.message}`, 'error');
+                listing[productName] = [];
             }
-        });
-
-        addFtpLog("Successfully retrieved local directory listing.", 'info');
-        return { success: true, listing };
-    } catch (error: any) {
-        if (error.code === 'ENOENT') {
-            addFtpLog(`Root local directory not found: ${rootPath}. It might be created on first download.`, 'info');
-            const emptyListing: LocalDirectoryListing = {};
-            currentAppConfig.folders.forEach(folder => {
-                emptyListing[folder.name] = [];
-            });
-            return { success: true, listing: emptyListing, message: "Root local directory not found, will be created." };
         }
-        addFtpLog(`Error reading local directory ${rootPath}: ${error.message}`, 'error');
-        return { success: false, error: `Failed to read local directory: ${error.message}`, listing: {} };
     }
+    
+    addLog("Successfully retrieved local directory listing.", 'info');
+    return { success: true, listing };
 }
 
 
 export async function downloadLocalFile(folderName: string, fileName: string): Promise<DownloadLocalFileResponse> {
-  if (!currentAppConfig || !currentAppConfig.server.localPath) {
+  if (!currentAppConfig) {
     return { success: false, error: "Application not configured for local file access." };
   }
 
-  const rootLocalPath = path.resolve(currentAppConfig.server.localPath);
-  const targetFilePath = path.resolve(rootLocalPath, folderName, fileName);
+  const pathMapping: { [key: string]: string | undefined } = {
+        'OPMET Products': currentAppConfig.opmetPath,
+        'SIGMET Products': currentAppConfig.sigmetPath,
+        'Volcanic Ash Products': currentAppConfig.volcanicAshPath,
+        'Tropical Cyclone Products': currentAppConfig.tropicalCyclonePath
+    };
+  
+  const basePath = pathMapping[folderName];
 
-  if (!targetFilePath.startsWith(rootLocalPath + path.sep)) {
-    addFtpLog(`Security Alert: Attempt to access file outside of configured root path. Requested: ${targetFilePath}`, 'error');
+  if (!basePath) {
+      return { success: false, error: `No path configured for folder: ${folderName}` };
+  }
+
+  const resolvedBasePath = path.resolve(basePath);
+  const targetFilePath = path.resolve(resolvedBasePath, fileName);
+
+  if (!targetFilePath.startsWith(resolvedBasePath + path.sep)) {
+    addLog(`Security Alert: Attempt to access file outside of configured path. Requested: ${targetFilePath}`, 'error');
     return { success: false, error: "Access denied: File path is outside the allowed directory." };
   }
 
@@ -427,7 +208,7 @@ export async function downloadLocalFile(folderName: string, fileName: string): P
         contentType = 'image/gif';
     }
 
-    addFtpLog(`Preparing download for local file: ${targetFilePath}`, 'info');
+    addLog(`Preparing download for local file: ${targetFilePath}`, 'info');
     return { 
       success: true, 
       data: fileBuffer, 
@@ -437,10 +218,10 @@ export async function downloadLocalFile(folderName: string, fileName: string): P
 
   } catch (error: any) {
     if (error.code === 'ENOENT') {
-      addFtpLog(`File not found for download: ${targetFilePath}`, 'error');
+      addLog(`File not found for download: ${targetFilePath}`, 'error');
       return { success: false, error: "File not found." };
     }
-    addFtpLog(`Error reading file for download ${targetFilePath}: ${error.message}`, 'error');
+    addLog(`Error reading file for download ${targetFilePath}: ${error.message}`, 'error');
     return { success: false, error: `Could not read file: ${error.message}` };
   }
 }
@@ -462,9 +243,8 @@ const createUserServerSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters."),
   email: z.string().email("Invalid email address."),
   password: z.string().min(6, "Password must be at least 6 characters."),
-  // confirmPassword is not needed by the server action itself, only for client-side form validation
-  role: z.string().min(1, "Role is required."), // Validated against DB if necessary during action
-  station: z.string().min(1, "Station is required."), // Validated against DB if necessary
+  role: z.string().min(1, "Role is required."),
+  station: z.string().min(1, "Station is required."),
 });
 
 
@@ -488,10 +268,6 @@ export async function createUserAction(formData: FormData): Promise<UserActionRe
   try {
     const { db } = await connectToDatabase();
     const usersCollection = db.collection<UserDocument>('users');
-    // Optionally, validate role and station against their respective collections here
-    // For example:
-    // const roleExists = await db.collection('roles').findOne({ name: role });
-    // if (!roleExists) return { success: false, message: "Invalid role selected." };
 
     const existingUser = await usersCollection.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
@@ -504,7 +280,7 @@ export async function createUserAction(formData: FormData): Promise<UserActionRe
       username,
       email,
       hashedPassword,
-      roles: [role as UserRole], // Assuming role string is a valid UserRole
+      roles: [role as UserRole], 
       station,
       createdAt: new Date(),
       status: 'active', 
@@ -579,7 +355,7 @@ export async function deleteUserAction(userId: string): Promise<UserActionRespon
 export async function getRolesAction(): Promise<UserActionResponse> {
   try {
     const { db } = await connectToDatabase();
-    const rolesCollection = db.collection<{ name: string }>('roles'); // Assuming roles docs have a 'name' field
+    const rolesCollection = db.collection<{ name: string }>('roles');
     const roleDocuments = await rolesCollection.find({}).toArray();
     const roles = roleDocuments.map(doc => doc.name);
     return { success: true, message: "Roles fetched successfully.", roles };
@@ -592,7 +368,7 @@ export async function getRolesAction(): Promise<UserActionResponse> {
 export async function getStationsAction(): Promise<UserActionResponse> {
   try {
     const { db } = await connectToDatabase();
-    const stationsCollection = db.collection<{ name: string }>('stations'); // Assuming station docs have a 'name' field
+    const stationsCollection = db.collection<{ name: string }>('stations');
     const stationDocuments = await stationsCollection.find({}).toArray();
     const stations = stationDocuments.map(doc => doc.name);
     return { success: true, message: "Stations fetched successfully.", stations };
