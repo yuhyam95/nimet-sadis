@@ -1,60 +1,79 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useTransition } from "react";
 import { FetchedFilesList } from "@/components/fetched-files-list";
-import type { LocalDirectoryListing, LocalDirectoryResponse } from "@/types";
-import { getLocalDirectoryListing } from "@/lib/actions";
+import type { DirectoryContent } from "@/types";
+import { getProductDirectoryListing } from "@/lib/actions";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { MountainSnow, RefreshCw } from "lucide-react";
+import { MountainSnow, RefreshCw, Home, ChevronRight, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+
+const PRODUCT_KEY = "volcanicAsh";
+const PRODUCT_NAME = "Volcanic Ash Data";
 
 export default function VolcanicAshPage() {
-  const [localFilesListing, setLocalFilesListing] = useState<LocalDirectoryListing | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedFolderNameForView, setSelectedFolderNameForView] = useState<string | null>(null);
+  const [directoryContent, setDirectoryContent] = useState<DirectoryContent | null>(null);
+  const [isLoading, startLoadingTransition] = useTransition();
+  const [pathSegments, setPathSegments] = useState<string[]>([]);
+  const { toast } = useToast();
 
-  const handleSelectFolderForView = useCallback((folderName: string | null) => {
-    setSelectedFolderNameForView(folderName);
-  }, []);
+  const currentPath = pathSegments.join('/');
 
-  const fetchLocalFiles = useCallback(async () => {
-    setIsLoading(true);
-    try {
-        const response: LocalDirectoryResponse = await getLocalDirectoryListing();
-        if (response.success && response.listing) {
-          setLocalFilesListing(response.listing);
-        } else {
-          setLocalFilesListing({}); 
-        }
-    } catch (error) {
-        console.error("Failed to fetch Volcanic Ash page file listing:", error);
-        setLocalFilesListing({});
-    } finally {
-        setIsLoading(false);
-    }
-  }, []);
+  const fetchFiles = useCallback(() => {
+    startLoadingTransition(async () => {
+      const response = await getProductDirectoryListing(PRODUCT_KEY, currentPath);
+      if (response.success && response.content) {
+        setDirectoryContent(response.content);
+      } else {
+        setDirectoryContent({ files: [], folders: [] });
+        toast({
+          title: "Error Loading Files",
+          description: response.error || "Could not list directory contents.",
+          variant: "destructive",
+        });
+      }
+    });
+  }, [currentPath, toast]);
 
   useEffect(() => {
-    fetchLocalFiles();
-  }, [fetchLocalFiles]);
+    fetchFiles();
+  }, [fetchFiles]);
 
+  const handleFolderClick = (folderName: string) => {
+    setPathSegments(prev => [...prev, folderName]);
+  };
+
+  const handleBackClick = () => {
+    setPathSegments(prev => prev.slice(0, -1));
+  };
+
+  const handleBreadcrumbClick = (index: number) => {
+    if (index < 0) {
+      setPathSegments([]);
+    } else {
+      setPathSegments(prev => prev.slice(0, index + 1));
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-start p-4 md:p-8 space-y-8 bg-background">
-      <header className="w-full max-w-3xl flex items-center justify-between">
+      <header className="w-full max-w-4xl flex items-center justify-between">
         <div className="text-center md:text-left">
           <h1 className="text-4xl font-bold text-primary tracking-tight flex items-center">
-            <MountainSnow className="mr-4 h-10 w-10"/> Volcanic Ash Data
+            <MountainSnow className="mr-4 h-10 w-10"/> {PRODUCT_NAME}
           </h1>
           <p className="text-muted-foreground mt-2 text-lg">
-            View locally stored files for volcanic ash advisories.
+            Browse the {PRODUCT_NAME} directory.
           </p>
         </div>
         <div className="flex items-center gap-2">
-            <Button onClick={fetchLocalFiles} variant="outline" size="sm" disabled={isLoading}>
+            <Button onClick={fetchFiles} variant="outline" size="sm" disabled={isLoading}>
                 <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-                Refresh Files
+                Refresh
             </Button>
             <div className="md:hidden">
                 <SidebarTrigger />
@@ -62,17 +81,55 @@ export default function VolcanicAshPage() {
         </div>
       </header>
 
-      <main className="w-full max-w-3xl space-y-8">
-        <FetchedFilesList 
-            directoryListing={localFilesListing} 
-            isLoading={isLoading}
-            selectedFolderName={selectedFolderNameForView}
-            onSelectFolder={handleSelectFolderForView}
-            title="Volcanic Ash Products"
-        />
+      <main className="w-full max-w-4xl space-y-4">
+        <div className="flex items-center gap-2 flex-wrap">
+          {pathSegments.length > 0 && (
+             <Button variant="outline" size="sm" onClick={handleBackClick} disabled={isLoading}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back
+            </Button>
+          )}
+          <div className="flex items-center text-sm text-muted-foreground bg-muted/50 p-2 rounded-md flex-grow">
+            <button onClick={() => handleBreadcrumbClick(-1)} className="hover:text-primary p-1 rounded-sm transition-colors">
+              <Home className="h-4 w-4"/>
+            </button>
+            {pathSegments.map((segment, index) => (
+              <div key={index} className="flex items-center">
+                <ChevronRight className="h-4 w-4 mx-1 shrink-0" />
+                <button onClick={() => handleBreadcrumbClick(index)} className="hover:text-primary p-1 rounded-sm transition-colors text-left truncate">
+                  {segment}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {isLoading ? (
+          <Card>
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                <Skeleton className="h-8 w-1/4" />
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <Skeleton className="h-24 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                </div>
+                 <Skeleton className="h-8 w-1/4 mt-8" />
+                 <Skeleton className="h-10 w-full" />
+                 <Skeleton className="h-10 w-full" />
+                 <Skeleton className="h-10 w-full" />
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <FetchedFilesList 
+              content={directoryContent} 
+              onFolderClick={handleFolderClick}
+              productKey={PRODUCT_KEY}
+              currentPath={currentPath}
+          />
+        )}
       </main>
-       <footer className="w-full max-w-3xl text-center text-sm text-muted-foreground mt-8">
-        <p>&copy; {new Date().getFullYear()} NiMet-SADIS. Volcanic Ash Data.</p>
+       <footer className="w-full max-w-4xl text-center text-sm text-muted-foreground mt-8">
+        <p>&copy; {new Date().getFullYear()} NiMet-SADIS. {PRODUCT_NAME}.</p>
       </footer>
     </div>
   );

@@ -23,15 +23,16 @@ export interface LocalFileEntry {
   lastModified: Date;
 }
 
-export interface LocalDirectoryListing {
-  [folderName: string]: LocalFileEntry[];
+export interface DirectoryContent {
+    files: LocalFileEntry[];
+    folders: string[];
 }
 
-export interface LocalDirectoryResponse {
-  success: boolean;
-  listing?: LocalDirectoryListing;
-  message?: string;
-  error?: string;
+export interface DirectoryContentResponse {
+    success: boolean;
+    content?: DirectoryContent;
+    message?: string;
+    error?: string;
 }
 
 export interface DownloadLocalFileResponse {

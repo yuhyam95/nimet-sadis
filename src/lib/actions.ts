@@ -1,7 +1,7 @@
 
 "use server";
 
-import type { AppConfig, LogEntry as AppLogEntry, LocalDirectoryListing, LocalDirectoryResponse, DownloadLocalFileResponse, User, UserDocument, UserRole } from "@/types";
+import type { AppConfig, LogEntry as AppLogEntry, DirectoryContent, DirectoryContentResponse, DownloadLocalFileResponse, User, UserDocument, UserRole, LocalFileEntry } from "@/types";
 import { z } from "zod";
 import fs from 'fs/promises';
 import { constants as fsConstants } from 'fs';
@@ -107,88 +107,92 @@ export async function getAppStatusAndLogs(): Promise<{ status: 'idle' | 'ok' | '
     };
 }
 
+export async function getProductDirectoryListing(productKey: string, subPath: string = ''): Promise<DirectoryContentResponse> {
+  if (!currentAppConfig) {
+    return { success: false, error: "Application not configured." };
+  }
 
-export async function getLocalDirectoryListing(): Promise<LocalDirectoryResponse> {
-    if (!currentAppConfig) {
-        addLog("Cannot get local directory listing: No active configuration.", 'warning');
-        return { success: false, message: "No active configuration.", listing: {} };
-    }
+  const pathKey = `${productKey}Path`;
+  const basePath = (currentAppConfig as any)[pathKey];
 
-    const listing: LocalDirectoryListing = {};
-    const pathMapping = {
-        'OPMET Products': currentAppConfig.opmetPath,
-        'SIGMET Products': currentAppConfig.sigmetPath,
-        'Volcanic Ash Products': currentAppConfig.volcanicAshPath,
-        'Tropical Cyclone Products': currentAppConfig.tropicalCyclonePath,
-    };
+  if (!basePath) {
+    return { success: false, error: `No path configured for product: ${productKey}` };
+  }
 
-    for (const [productName, productPath] of Object.entries(pathMapping)) {
+  const resolvedBasePath = path.resolve(basePath);
+  const targetPath = path.join(resolvedBasePath, subPath);
+  const resolvedTargetPath = path.resolve(targetPath);
+
+  if (!resolvedTargetPath.startsWith(resolvedBasePath)) {
+    addLog(`Security Alert: Attempt to access path outside of configured directory. Requested: ${resolvedTargetPath}`, 'error');
+    return { success: false, error: "Access denied: Path is outside the allowed directory." };
+  }
+
+  try {
+    await fs.access(resolvedTargetPath, fsConstants.F_OK);
+    const entries = await fs.readdir(resolvedTargetPath, { withFileTypes: true });
+    const files: LocalFileEntry[] = [];
+    const folders: string[] = [];
+
+    for (const entry of entries) {
+      const entryPath = path.join(resolvedTargetPath, entry.name);
+      if (entry.isDirectory()) {
+        folders.push(entry.name);
+      } else if (entry.isFile()) {
         try {
-            const resolvedPath = path.resolve(productPath);
-            const files: (import("@/types").LocalFileEntry)[] = [];
-            const fileEntries = await fs.readdir(resolvedPath, { withFileTypes: true });
-
-            for (const fileEntry of fileEntries) {
-                if (fileEntry.isFile()) {
-                    try {
-                        const filePath = path.join(resolvedPath, fileEntry.name);
-                        const stats = await fs.stat(filePath);
-                        files.push({
-                            name: fileEntry.name,
-                            size: stats.size,
-                            lastModified: stats.mtime,
-                        });
-                    } catch (statError: any) {
-                        addLog(`Error stating file ${fileEntry.name} in ${productName} folder: ${statError.message}`, 'error');
-                    }
-                }
-            }
-            listing[productName] = files.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
-        } catch (error: any) {
-            if (error.code === 'ENOENT') {
-                addLog(`Directory not found for ${productName}: ${productPath}. It might be created on config save.`, 'info');
-                listing[productName] = [];
-            } else {
-                addLog(`Error reading directory for ${productName} (${productPath}): ${error.message}`, 'error');
-                listing[productName] = [];
-            }
+          const stats = await fs.stat(entryPath);
+          files.push({
+            name: entry.name,
+            size: stats.size,
+            lastModified: stats.mtime,
+          });
+        } catch (statError: any) {
+          addLog(`Error stating file ${entry.name} in ${resolvedTargetPath}: ${statError.message}`, 'error');
         }
+      }
     }
     
-    addLog("Successfully retrieved local directory listing.", 'info');
-    return { success: true, listing };
+    folders.sort((a, b) => a.localeCompare(b));
+    files.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+    
+    return { success: true, content: { files, folders } };
+
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      addLog(`Directory not found for ${productKey} at path ${resolvedTargetPath}.`, 'warning');
+      return { success: false, error: "Directory not found. Please check configuration and ensure the path exists." };
+    }
+    addLog(`Error reading directory for ${productKey} at ${resolvedTargetPath}: ${error.message}`, 'error');
+    return { success: false, error: `Error reading directory: ${error.message}` };
+  }
 }
 
 
-export async function downloadLocalFile(folderName: string, fileName: string): Promise<DownloadLocalFileResponse> {
+export async function downloadLocalFile(productKey: string, filePath: string): Promise<DownloadLocalFileResponse> {
   if (!currentAppConfig) {
     return { success: false, error: "Application not configured for local file access." };
   }
 
-  const pathMapping: { [key: string]: string | undefined } = {
-        'OPMET Products': currentAppConfig.opmetPath,
-        'SIGMET Products': currentAppConfig.sigmetPath,
-        'Volcanic Ash Products': currentAppConfig.volcanicAshPath,
-        'Tropical Cyclone Products': currentAppConfig.tropicalCyclonePath
-    };
-  
-  const basePath = pathMapping[folderName];
+  const pathKey = `${productKey}Path` as keyof AppConfig;
+  const basePath = currentAppConfig[pathKey];
 
   if (!basePath) {
-      return { success: false, error: `No path configured for folder: ${folderName}` };
+      return { success: false, error: `No path configured for product: ${productKey}` };
   }
 
   const resolvedBasePath = path.resolve(basePath);
-  const targetFilePath = path.resolve(resolvedBasePath, fileName);
+  const targetFilePath = path.join(resolvedBasePath, filePath);
+  const resolvedTargetFilePath = path.resolve(targetFilePath);
 
-  if (!targetFilePath.startsWith(resolvedBasePath + path.sep)) {
-    addLog(`Security Alert: Attempt to access file outside of configured path. Requested: ${targetFilePath}`, 'error');
+  if (!resolvedTargetFilePath.startsWith(resolvedBasePath)) {
+    addLog(`Security Alert: Attempt to access file outside of configured path. Requested: ${resolvedTargetFilePath}`, 'error');
     return { success: false, error: "Access denied: File path is outside the allowed directory." };
   }
 
   try {
-    await fs.access(targetFilePath, fsConstants.F_OK); 
-    const fileBuffer = await fs.readFile(targetFilePath);
+    await fs.access(resolvedTargetFilePath, fsConstants.F_OK); 
+    const fileBuffer = await fs.readFile(resolvedTargetFilePath);
+    const fileName = path.basename(filePath);
     
     let contentType = 'application/octet-stream';
     const ext = path.extname(fileName).toLowerCase();
@@ -208,7 +212,7 @@ export async function downloadLocalFile(folderName: string, fileName: string): P
         contentType = 'image/gif';
     }
 
-    addLog(`Preparing download for local file: ${targetFilePath}`, 'info');
+    addLog(`Preparing download for local file: ${resolvedTargetFilePath}`, 'info');
     return { 
       success: true, 
       data: fileBuffer, 
@@ -218,10 +222,10 @@ export async function downloadLocalFile(folderName: string, fileName: string): P
 
   } catch (error: any) {
     if (error.code === 'ENOENT') {
-      addLog(`File not found for download: ${targetFilePath}`, 'error');
+      addLog(`File not found for download: ${resolvedTargetFilePath}`, 'error');
       return { success: false, error: "File not found." };
     }
-    addLog(`Error reading file for download ${targetFilePath}: ${error.message}`, 'error');
+    addLog(`Error reading file for download ${resolvedTargetFilePath}: ${error.message}`, 'error');
     return { success: false, error: `Could not read file: ${error.message}` };
   }
 }
