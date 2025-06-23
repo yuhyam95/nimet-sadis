@@ -2,7 +2,7 @@
 "use client";
 
 import type { DirectoryContent, LocalFileEntry } from "@/types";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { FileText, Folder, Clock, Download, Loader2, Eye } from "lucide-react";
@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
+  DialogHeader as DialogHeaderPrimitive,
   DialogTitle,
   DialogFooter
 } from "@/components/ui/dialog";
@@ -238,9 +238,9 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
       </Card>
       <Dialog open={isPreviewOpen} onOpenChange={handleDialogChange}>
         <DialogContent className="max-w-4xl w-auto max-h-[90vh]">
-            <DialogHeader>
+            <DialogHeaderPrimitive>
             <DialogTitle>{previewImageName || 'Image Preview'}</DialogTitle>
-            </DialogHeader>
+            </DialogHeaderPrimitive>
             <div className="flex justify-center items-center h-full min-h-[60vh] overflow-auto py-4">
             {isLoadingPreview ? (
                 <Loader2 className="h-8 w-8 animate-spin" />
