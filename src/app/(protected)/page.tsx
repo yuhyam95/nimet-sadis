@@ -3,15 +3,22 @@
 import { useState, useEffect } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { getAppStatusAndLogs, getLatestFiles } from "@/lib/actions";
+import { getAppStatusAndLogs, getLatestFiles, downloadLocalFile } from "@/lib/actions";
 import { getSession } from "@/lib/auth";
 import type { AppConfig, SessionPayload, LatestFileEntry } from "@/types";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Cloud, AlertTriangle, MountainSnow, Tornado, Loader2 } from "lucide-react";
+import { Cloud, AlertTriangle, MountainSnow, Tornado, Loader2, Download, Eye } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
-
+import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
+} from "@/components/ui/dialog";
 
 export default function HomePage() {
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -19,6 +26,13 @@ export default function HomePage() {
   const [session, setSession] = useState<SessionPayload | null>(null);
   const [latestFiles, setLatestFiles] = useState<LatestFileEntry[]>([]);
   const [isFilesLoading, setIsFilesLoading] = useState(true);
+  const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [previewImageName, setPreviewImageName] = useState<string>("");
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewFile, setPreviewFile] = useState<LatestFileEntry | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     async function fetchData() {
@@ -82,6 +96,90 @@ export default function HomePage() {
     }
   };
 
+  const isImageFile = (fileName: string) => {
+    return /\.(jpe?g|png|gif|webp)$/i.test(fileName);
+  };
+
+  const handleFileView = async (file: LatestFileEntry) => {
+    setIsLoadingPreview(true);
+    setPreviewImageName(file.name);
+    setPreviewFile(file);
+    setIsPreviewOpen(true);
+
+    try {
+      const result = await downloadLocalFile(file.product, file.relativePath);
+      if (result.success && result.data && result.contentType) {
+        let byteArray;
+        if (typeof result.data === 'object' && (result.data as any).type === 'Buffer' && Array.isArray((result.data as any).data)) {
+          byteArray = new Uint8Array((result.data as any).data);
+        } else if (Array.isArray(result.data)) { 
+          byteArray = Uint8Array.from(result.data);
+        } else {
+          throw new Error("Invalid file data format received");
+        }
+        const blob = new Blob([byteArray], { type: result.contentType });
+        const imageUrl = URL.createObjectURL(blob);
+        setPreviewImageUrl(imageUrl);
+      } else {
+        toast({ title: "Preview Failed", description: result.error || "Could not load image.", variant: "destructive" });
+        setIsPreviewOpen(false);
+      }
+    } catch (error: any) {
+      toast({ title: "Preview Error", description: error.message || "An error occurred.", variant: "destructive" });
+      setIsPreviewOpen(false);
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  };
+
+  const handleFileDownload = async (file: LatestFileEntry) => {
+    setDownloadingFile(file.relativePath);
+    try {
+      const result = await downloadLocalFile(file.product, file.relativePath);
+      if (result.success && result.data && result.contentType && result.fileName) {
+        
+        let byteArray: Uint8Array;
+        if (typeof result.data === 'object' && (result.data as any).type === 'Buffer' && Array.isArray((result.data as any).data)) {
+          byteArray = new Uint8Array((result.data as any).data);
+        } else if (Array.isArray(result.data)) { 
+          byteArray = Uint8Array.from(result.data);
+        } else {
+          console.error("Unexpected file data format received from server:", result.data);
+          toast({ title: "Download Failed", description: "Received invalid file data format.", variant: "destructive" });
+          setDownloadingFile(null);
+          return;
+        }
+        
+        const blob = new Blob([byteArray], { type: result.contentType });
+        
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = result.fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+        toast({ title: "Download Started", description: `${result.fileName} is downloading.` });
+      } else {
+        toast({ title: "Download Failed", description: result.error || "Unknown error occurred.", variant: "destructive" });
+      }
+    } catch (error: any) {
+      console.error("Download error:", error);
+      toast({ title: "Download Error", description: error.message || "Could not initiate download.", variant: "destructive" });
+    } finally {
+      setDownloadingFile(null);
+    }
+  };
+
+  const handleDialogChange = (open: boolean) => {
+    setIsPreviewOpen(open);
+    if (!open) {
+      setPreviewImageUrl(null);
+      setPreviewImageName("");
+      setPreviewFile(null);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-start p-4 md:p-8 space-y-8 bg-background">
       <header className="w-full max-w-6xl flex items-center justify-between">
@@ -138,6 +236,7 @@ export default function HomePage() {
                                 <TableHead>File Name</TableHead>
                                 <TableHead>Product</TableHead>
                                 <TableHead>Last Modified</TableHead>
+                                <TableHead>Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -146,6 +245,34 @@ export default function HomePage() {
                                     <TableCell className="font-medium">{file.name}</TableCell>
                                     <TableCell>{getProductDisplayName(file.product)}</TableCell>
                                     <TableCell>{format(new Date(file.lastModified), "PPp")}</TableCell>
+                                    <TableCell>
+                                        <div className="flex items-center space-x-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleFileDownload(file)}
+                                                disabled={downloadingFile === file.relativePath}
+                                                className="h-8 px-2"
+                                            >
+                                                {downloadingFile === file.relativePath ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                    <Download className="h-4 w-4" />
+                                                )}
+                                            </Button>
+                                            {isImageFile(file.name) && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handleFileView(file)}
+                                                    disabled={isLoadingPreview}
+                                                    className="h-8 px-2"
+                                                >
+                                                    <Eye className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -160,6 +287,59 @@ export default function HomePage() {
       <footer className="w-full max-w-6xl text-center text-sm text-muted-foreground mt-8">
         <p>&copy; {new Date().getFullYear()} NiMet-SADIS. Dashboard.</p>
       </footer>
+
+      <Dialog open={isPreviewOpen} onOpenChange={handleDialogChange}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>{previewImageName}</span>
+              {previewFile && (
+                <span className="text-sm text-muted-foreground">
+                  {format(new Date(previewFile.lastModified), "PPp")}
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center items-center min-h-[400px]">
+            {isLoadingPreview ? (
+              <div className="flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : previewImageUrl ? (
+              <img 
+                src={previewImageUrl} 
+                alt={previewImageName} 
+                className="max-w-full max-h-full object-contain"
+                onLoad={() => URL.revokeObjectURL(previewImageUrl)}
+              />
+            ) : (
+              <p className="text-muted-foreground">Failed to load image</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => previewFile && handleFileDownload(previewFile)}
+              disabled={downloadingFile === previewFile?.relativePath}
+            >
+              {downloadingFile === previewFile?.relativePath ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Downloading...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                </>
+              )}
+            </Button>
+            <Button variant="outline" onClick={() => handleDialogChange(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

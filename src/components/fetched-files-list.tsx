@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { DirectoryContent, LocalFileEntry } from "@/types";
@@ -46,6 +45,7 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [previewImageName, setPreviewImageName] = useState<string | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [previewFile, setPreviewFile] = useState<LocalFileEntry | null>(null);
 
   useEffect(() => {
     // Cleanup blob URL on unmount
@@ -63,6 +63,7 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
           }
           setPreviewImageUrl(null);
           setPreviewImageName(null);
+          setPreviewFile(null);
       }
       setIsPreviewOpen(isOpen);
   }
@@ -71,6 +72,7 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
     const fullFilePath = [currentPath, file.name].filter(Boolean).join('/');
     setIsLoadingPreview(true);
     setPreviewImageName(file.name);
+    setPreviewFile(file);
     handleDialogChange(true);
 
     try {
@@ -237,25 +239,57 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
         </CardContent>
       </Card>
       <Dialog open={isPreviewOpen} onOpenChange={handleDialogChange}>
-        <DialogContent className="max-w-4xl w-auto max-h-[90vh]">
-            <DialogHeaderPrimitive>
-            <DialogTitle>{previewImageName || 'Image Preview'}</DialogTitle>
-            </DialogHeaderPrimitive>
-            <div className="flex justify-center items-center h-full min-h-[60vh] overflow-auto py-4">
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeaderPrimitive>
+            <DialogTitle className="flex items-center justify-between">
+              <span>{previewImageName || 'Image Preview'}</span>
+              {previewFile && (
+                <span className="text-sm text-muted-foreground">
+                  {format(new Date(previewFile.lastModified), "PPp")}
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeaderPrimitive>
+          <div className="flex justify-center items-center min-h-[400px]">
             {isLoadingPreview ? (
-                <Loader2 className="h-8 w-8 animate-spin" />
+              <div className="flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
             ) : previewImageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={previewImageUrl} alt={previewImageName || 'Preview'} className="max-w-full max-h-[80vh] object-contain" />
+              <img 
+                src={previewImageUrl} 
+                alt={previewImageName || 'Preview'} 
+                className="max-w-full max-h-full object-contain"
+                onLoad={() => URL.revokeObjectURL(previewImageUrl)}
+              />
             ) : (
-                <p>Could not load image preview.</p>
+              <p className="text-muted-foreground">Failed to load image</p>
             )}
-            </div>
-             <DialogFooter className="sm:justify-end">
-                <Button type="button" variant="secondary" onClick={() => handleDialogChange(false)}>Close</Button>
-            </DialogFooter>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => previewFile && handleFileDownload(previewFile)}
+              disabled={downloadingFile === (previewFile ? [currentPath, previewFile.name].filter(Boolean).join('/') : null)}
+            >
+              {downloadingFile === (previewFile ? [currentPath, previewFile.name].filter(Boolean).join('/') : null) ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Downloading...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                </>
+              )}
+            </Button>
+            <Button variant="outline" onClick={() => handleDialogChange(false)}>
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
-     </Dialog>
+      </Dialog>
     </>
   );
 }
