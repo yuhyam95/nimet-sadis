@@ -8,6 +8,13 @@ export interface AppConfig {
   tropicalCyclonePath: string;
 }
 
+export interface LatestFileEntry {
+  name: string;
+  product: string;
+  lastModified: Date;
+  relativePath: string;
+}
+
 export interface LogEntry {
   id: string;
   timestamp: Date;

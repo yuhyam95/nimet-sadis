@@ -3,35 +3,48 @@
 
 import { useState, useEffect } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { getAppStatusAndLogs } from "@/lib/actions";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { getAppStatusAndLogs, getLatestFiles } from "@/lib/actions";
 import { getSession } from "@/lib/auth";
-import type { AppConfig, SessionPayload } from "@/types";
+import type { AppConfig, SessionPayload, LatestFileEntry } from "@/types";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Cloud, AlertTriangle, MountainSnow, Tornado } from "lucide-react";
+import { Cloud, AlertTriangle, MountainSnow, Tornado, Loader2 } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { format } from "date-fns";
+
 
 export default function HomePage() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [session, setSession] = useState<SessionPayload | null>(null);
+  const [latestFiles, setLatestFiles] = useState<LatestFileEntry[]>([]);
+  const [isFilesLoading, setIsFilesLoading] = useState(true);
 
   useEffect(() => {
     async function fetchData() {
       setIsLoading(true);
+      setIsFilesLoading(true);
       try {
-        const [statusResponse, sessionData] = await Promise.all([
+        const [statusResponse, sessionData, filesResponse] = await Promise.all([
           getAppStatusAndLogs(),
-          getSession()
+          getSession(),
+          getLatestFiles()
         ]);
         if (statusResponse.config) {
           setConfig(statusResponse.config);
         }
         setSession(sessionData);
+
+        if (filesResponse.success && filesResponse.files) {
+            setLatestFiles(filesResponse.files);
+        }
+
       } catch (error) {
         console.error("Failed to fetch initial data for homepage:", error);
       } finally {
         setIsLoading(false);
+        setIsFilesLoading(false);
       }
     }
     fetchData();
@@ -40,33 +53,39 @@ export default function HomePage() {
   const dataProducts = [
     {
       title: "OPMET",
-      description: "Access Operational Meteorological data including METAR, TAF, and SPECI reports.",
       href: "/opmet",
       icon: Cloud,
     },
     {
       title: "SIGMET",
-      description: "Monitor significant meteorological phenomena hazardous to aviation.",
       href: "/sigmet",
       icon: AlertTriangle,
     },
     {
-      title: "Volcanic Ash Products",
-      description: "View advisories and graphical products for volcanic ash clouds.",
+      title: "Volcanic Ash",
       href: "/volcanic-ash",
       icon: MountainSnow,
     },
     {
-      title: "Tropical Cyclone Products",
-      description: "Track and view advisories and graphical data for tropical cyclones.",
+      title: "Tropical Cyclone",
       href: "/tropical-cyclone",
       icon: Tornado,
     },
   ];
 
+  const getProductDisplayName = (productKey: string) => {
+    switch (productKey) {
+        case 'opmet': return 'OPMET';
+        case 'sigmet': return 'SIGMET';
+        case 'volcanicAsh': return 'Volcanic Ash';
+        case 'tropicalCyclone': return 'Tropical Cyclone';
+        default: return productKey;
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-start p-4 md:p-8 space-y-8 bg-background">
-      <header className="w-full max-w-4xl flex items-center justify-between">
+      <header className="w-full max-w-6xl flex items-center justify-between">
         <div className="text-center md:text-left">
           <h1 className="text-4xl font-bold text-primary tracking-tight">
             Welcome to NiMet-SADIS
@@ -80,37 +99,69 @@ export default function HomePage() {
         </div>
       </header>
 
-      <main className="w-full max-w-4xl space-y-8">
+      <main className="w-full max-w-6xl space-y-8">
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Data Products</CardTitle>
-            <CardDescription>
-              Select a data product to view real-time information and fetched files.
-            </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-6 sm:grid-cols-2 lg:grid-cols-2">
-            {dataProducts.map((product) => (
-              <Card key={product.title} className="flex flex-col">
+          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+             {dataProducts.map((product) => (
+              <Card key={product.title} className="flex flex-col justify-between">
                 <CardHeader>
                   <CardTitle className="flex items-center text-xl">
                     <product.icon className="mr-3 h-6 w-6 text-primary" />
                     {product.title}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="flex-grow">
-                  <p className="text-sm text-muted-foreground">{product.description}</p>
-                </CardContent>
-                <div className="p-6 pt-0">
+                <CardFooter>
                   <Button asChild className="w-full">
                     <Link href={product.href}>View Data</Link>
                   </Button>
-                </div>
+                </CardFooter>
               </Card>
             ))}
           </CardContent>
         </Card>
+
+        <Card className="shadow-lg">
+            <CardHeader>
+                <CardTitle>Latest Files</CardTitle>
+                <CardDescription>
+                    A list of the 10 most recently updated files across all products.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isFilesLoading ? (
+                    <div className="flex justify-center items-center h-48">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                ) : latestFiles.length > 0 ? (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>File Name</TableHead>
+                                <TableHead>Product</TableHead>
+                                <TableHead>Last Modified</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {latestFiles.map((file, index) => (
+                                <TableRow key={`${file.relativePath}-${index}`}>
+                                    <TableCell className="font-medium">{file.name}</TableCell>
+                                    <TableCell>{getProductDisplayName(file.product)}</TableCell>
+                                    <TableCell>{format(new Date(file.lastModified), "PPp")}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                ) : (
+                    <p className="text-center text-muted-foreground py-10">No files found in configured directories.</p>
+                )}
+            </CardContent>
+        </Card>
+
       </main>
-      <footer className="w-full max-w-4xl text-center text-sm text-muted-foreground mt-8">
+      <footer className="w-full max-w-6xl text-center text-sm text-muted-foreground mt-8">
         <p>&copy; {new Date().getFullYear()} NiMet-SADIS. Dashboard.</p>
       </footer>
     </div>

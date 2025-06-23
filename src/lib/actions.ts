@@ -1,7 +1,7 @@
 
 "use server";
 
-import type { AppConfig, LogEntry as AppLogEntry, DirectoryContent, DirectoryContentResponse, DownloadLocalFileResponse, User, UserDocument, UserRole, LocalFileEntry } from "@/types";
+import type { AppConfig, LogEntry as AppLogEntry, DirectoryContent, DirectoryContentResponse, DownloadLocalFileResponse, User, UserDocument, UserRole, LocalFileEntry, LatestFileEntry } from "@/types";
 import { z } from "zod";
 import fs from 'fs/promises';
 import { constants as fsConstants } from 'fs';
@@ -229,6 +229,63 @@ export async function downloadLocalFile(productKey: string, filePath: string): P
     return { success: false, error: `Could not read file: ${error.message}` };
   }
 }
+
+async function recursivelyFindFiles(directory: string, productKey: string, basePath: string): Promise<LatestFileEntry[]> {
+    let files: LatestFileEntry[] = [];
+    try {
+        const entries = await fs.readdir(directory, { withFileTypes: true });
+        for (const entry of entries) {
+            const fullPath = path.join(directory, entry.name);
+            if (entry.isDirectory()) {
+                files = files.concat(await recursivelyFindFiles(fullPath, productKey, basePath));
+            } else if (entry.isFile()) {
+                const stats = await fs.stat(fullPath);
+                files.push({
+                    name: entry.name,
+                    product: productKey,
+                    lastModified: stats.mtime,
+                    relativePath: path.relative(basePath, fullPath)
+                });
+            }
+        }
+    } catch (error) {
+        addLog(`Error scanning directory ${directory}: ${(error as Error).message}`, 'warning');
+    }
+    return files;
+}
+
+export async function getLatestFiles(): Promise<{ success: boolean; files?: LatestFileEntry[]; error?: string }> {
+  if (!currentAppConfig) {
+    return { success: false, error: "Application not configured." };
+  }
+
+  let allFiles: LatestFileEntry[] = [];
+
+  const productPaths = {
+    opmet: currentAppConfig.opmetPath,
+    sigmet: currentAppConfig.sigmetPath,
+    volcanicAsh: currentAppConfig.volcanicAshPath,
+    tropicalCyclone: currentAppConfig.tropicalCyclonePath,
+  };
+
+  for (const [productKey, basePath] of Object.entries(productPaths)) {
+    if (basePath) {
+      const resolvedBasePath = path.resolve(basePath);
+      try {
+        await fs.access(resolvedBasePath, fsConstants.F_OK);
+        const productFiles = await recursivelyFindFiles(resolvedBasePath, productKey, resolvedBasePath);
+        allFiles.push(...productFiles);
+      } catch (err) {
+        addLog(`Directory for product ${productKey} at ${resolvedBasePath} not found or inaccessible.`, 'info');
+      }
+    }
+  }
+
+  allFiles.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+
+  return { success: true, files: allFiles.slice(0, 10) };
+}
+
 
 // --- User Management Actions ---
 
