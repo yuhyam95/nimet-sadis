@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -90,9 +89,6 @@ export default function HomePage() {
           <h1 className="text-4xl font-bold text-primary tracking-tight">
             Welcome to NiMet-SADIS
           </h1>
-          <p className="text-muted-foreground mt-2 text-lg">
-            Automated SADIS FTP file ingestion and local transfer. Use the sidebar or the cards below to navigate.
-          </p>
         </div>
         <div className="md:hidden">
           <SidebarTrigger />
