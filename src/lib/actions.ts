@@ -1,4 +1,3 @@
-
 "use server";
 
 import type { AppConfig, LogEntry as AppLogEntry, DirectoryContent, DirectoryContentResponse, DownloadLocalFileResponse, User, UserDocument, UserRole, LocalFileEntry, LatestFileEntry } from "@/types";
@@ -9,7 +8,7 @@ import path from 'path';
 import { connectToDatabase } from './db';
 import bcrypt from 'bcryptjs';
 import { ObjectId } from 'mongodb';
-import { createSession, deleteSession } from './auth';
+import { createSession, deleteSession, getSession } from './auth';
 import { redirect } from 'next/navigation';
 
 const operationLogs: AppLogEntry[] = [];
@@ -308,6 +307,10 @@ const createUserServerSchema = z.object({
   station: z.string().min(1, "Station is required."),
 });
 
+function toUserRoles(roles: string[]): UserRole[] {
+  const validRoles: UserRole[] = ['admin', 'airport manager', 'meteorologist'];
+  return roles.filter((role): role is UserRole => validRoles.includes(role as UserRole));
+}
 
 export async function createUserAction(formData: FormData): Promise<UserActionResponse> {
   const rawData = {
@@ -357,7 +360,7 @@ export async function createUserAction(formData: FormData): Promise<UserActionRe
         id: result.insertedId.toString(),
         username: newUserDocument.username,
         email: newUserDocument.email,
-        roles: newUserDocument.roles,
+        roles: toUserRoles(newUserDocument.roles),
         createdAt: newUserDocument.createdAt,
         status: newUserDocument.status,
         station: newUserDocument.station
@@ -376,12 +379,11 @@ export async function getUsersAction(): Promise<UserActionResponse> {
     const usersCollection = db.collection<UserDocument>('users');
     
     const userDocuments = await usersCollection.find({}, { projection: { hashedPassword: 0 } }).toArray();
-    
     const users: User[] = userDocuments.map(doc => ({
       id: doc._id!.toString(), 
       username: doc.username,
       email: doc.email,
-      roles: doc.roles,
+      roles: toUserRoles(doc.roles || []),
       createdAt: doc.createdAt,
       status: doc.status,
       station: doc.station,
@@ -486,4 +488,26 @@ export async function loginAction(formData: FormData): Promise<{ success: false;
 export async function logoutAction() {
     await deleteSession();
     redirect('/login');
+}
+
+// Get user settings (any user)
+export async function getUserSettings(userId: string) {
+  const { db } = await connectToDatabase();
+  const doc = await db.collection('user_settings').findOne({ userId });
+  return doc?.configuration || null;
+}
+
+// Set user settings (admin only)
+export async function setUserSettings(userId: string, configuration: any) {
+  const session = await getSession();
+  if (!session || !session.roles || !session.roles.includes('admin')) {
+    throw new Error('Unauthorized: Only admin can set user settings.');
+  }
+  const { db } = await connectToDatabase();
+  await db.collection('user_settings').updateOne(
+    { userId },
+    { $set: { configuration } },
+    { upsert: true }
+  );
+  return { success: true };
 }

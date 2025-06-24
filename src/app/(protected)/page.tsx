@@ -196,7 +196,7 @@ export default function HomePage() {
       <main className="w-full max-w-6xl space-y-8">
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle>Data Products</CardTitle>
+            <CardTitle>Available Products</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
              {dataProducts.map((product) => (
