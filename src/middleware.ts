@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { decrypt } from '@/lib/auth';
 
 const publicRoutes = ['/login'];
-const adminRoutes = ['/configuration', '/logs', '/user-management'];
+const adminRoutes = ['/user-management'];
 
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
@@ -23,7 +23,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/', req.nextUrl));
   }
 
-  // Role-based access control for admin routes
+  // Role-based access control for admin routes (only user-management now)
   if (session && isAdminRoute) {
     const userRoles = session.roles || [];
     if (!userRoles.includes('admin')) {

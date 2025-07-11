@@ -38,7 +38,7 @@ export async function decrypt(session: string | undefined = ''): Promise<Session
     const { payload } = await jwtVerify(session, key, {
       algorithms: ['HS256'],
     });
-    return payload as SessionPayload;
+    return payload as unknown as SessionPayload;
   } catch (error) {
     // It's normal for this to fail if the cookie is invalid or expired
     console.log('Failed to verify session.');
@@ -53,7 +53,8 @@ export async function createSession(userId: string, username: string, roles: str
 
   // By not setting `expires`, the cookie becomes a session cookie.
   // It will be deleted when the browser is closed.
-  cookies().set('session', session, {
+  const cookieStore = await cookies();
+  cookieStore.set('session', session, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -62,11 +63,13 @@ export async function createSession(userId: string, username: string, roles: str
 }
 
 export async function getSession(): Promise<SessionPayload | null> {
-  const sessionCookie = cookies().get('session')?.value;
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get('session')?.value;
   const session = await decrypt(sessionCookie);
   return session;
 }
 
 export async function deleteSession() {
-  cookies().delete('session');
+  const cookieStore = await cookies();
+  cookieStore.delete('session');
 }

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useTransition } from 'react';
+import { useTransition, useEffect } from 'react';
 import { loginAction } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +14,13 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
     const [isPending, startTransition] = useTransition();
-    const { toast } = useToast();
+    const { toast, dismiss } = useToast();
+
+    useEffect(() => {
+        // Clear any lingering toasts on mount
+        dismiss();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleSubmit = (formData: FormData) => {
         startTransition(async () => {
@@ -27,6 +33,9 @@ export default function LoginPage() {
                     description: result.message,
                     variant: 'destructive',
                 });
+            } else if (!result || result.success) {
+                // Manually redirect on success
+                window.location.href = '/';
             }
         });
     };
@@ -45,8 +54,8 @@ export default function LoginPage() {
                     <form action={handleSubmit}>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="email">Email</Label>
-                                <Input id="email" name="email" type="email" placeholder="admin@nimet.gov.ng" required disabled={isPending} />
+                                <Label htmlFor="username">Username</Label>
+                                <Input id="username" name="username" type="text" placeholder="admin" required disabled={isPending} />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="password">Password</Label>

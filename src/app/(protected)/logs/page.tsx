@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useCallback, useEffect } from "react";
@@ -25,12 +24,9 @@ export default function LogsPage() {
     setIsLoading(true);
     try {
       const { status, logs: serverLogs } = await getAppStatusAndLogs();
-      
       setLogs(serverLogs);
       setCurrentStatus(status); 
-
       addUiLogEntry({ message: "Refreshed logs and status from server.", type: 'info' });
-
     } catch (error) {
       addUiLogEntry({ message: "Failed to fetch log page data.", type: 'error' });
       setCurrentStatus("error");
@@ -42,8 +38,7 @@ export default function LogsPage() {
   useEffect(() => {
     addUiLogEntry({ message: "Navigated to Logs page.", type: 'info' });
     fetchLogPageData();
-  }, [fetchLogPageData, addUiLogEntry]); 
-
+  }, [fetchLogPageData, addUiLogEntry]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-start p-4 md:p-8 space-y-8 bg-background">
@@ -66,7 +61,6 @@ export default function LogsPage() {
             </div>
         </div>
       </header>
-
       <main className="w-full max-w-3xl space-y-8">
         {isLoading && !logs.length ? (
             <p className="text-center text-muted-foreground">Loading status and logs...</p>
@@ -82,4 +76,4 @@ export default function LogsPage() {
       </footer>
     </div>
   );
-}
+} 

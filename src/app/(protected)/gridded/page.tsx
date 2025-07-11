@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useTransition } from "react";
@@ -6,16 +5,16 @@ import { FetchedFilesList } from "@/components/fetched-files-list";
 import type { DirectoryContent } from "@/types";
 import { getProductDirectoryListing } from "@/lib/actions";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { MountainSnow, RefreshCw, Home, ChevronRight, ArrowLeft } from "lucide-react";
+import { Network, RefreshCw, Home, ChevronRight, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const PRODUCT_KEY = "volcanicAsh";
-const PRODUCT_NAME = "Volcanic Ash Data";
+const PRODUCT_KEY = "gridded";
+const PRODUCT_NAME = "GRIDDED Data";
 
-export default function VolcanicAshPage() {
+export default function GriddedPage() {
   const [directoryContent, setDirectoryContent] = useState<DirectoryContent | null>(null);
   const [isLoading, startLoadingTransition] = useTransition();
   const [pathSegments, setPathSegments] = useState<string[]>([]);
@@ -50,7 +49,7 @@ export default function VolcanicAshPage() {
   const handleBackClick = () => {
     setPathSegments(prev => prev.slice(0, -1));
   };
-
+  
   const handleBreadcrumbClick = (index: number) => {
     if (index < 0) {
       setPathSegments([]);
@@ -63,12 +62,12 @@ export default function VolcanicAshPage() {
     <div className="min-h-screen flex flex-col items-center justify-start p-4 md:p-8 space-y-8 bg-background">
       <header className="w-full max-w-4xl flex items-center justify-between">
         <div className="text-center md:text-left">
-          <h1 className="text-4xl font-bold text-primary tracking-tight flex items-center">
-            <MountainSnow className="mr-4 h-10 w-10"/> {PRODUCT_NAME}
-          </h1>
-          <p className="text-muted-foreground mt-2 text-lg">
-            Browse the {PRODUCT_NAME} directory.
-          </p>
+            <h1 className="text-4xl font-bold text-primary tracking-tight flex items-center">
+             <Network className="mr-4 h-10 w-10"/> {PRODUCT_NAME}
+            </h1>
+            <p className="text-muted-foreground mt-2 text-lg">
+              Browse the {PRODUCT_NAME} directory.
+            </p>
         </div>
         <div className="flex items-center gap-2">
             <Button onClick={fetchFiles} variant="outline" size="sm" disabled={isLoading}>
@@ -80,7 +79,6 @@ export default function VolcanicAshPage() {
             </div>
         </div>
       </header>
-
       <main className="w-full max-w-4xl space-y-4">
         <div className="flex items-center gap-2 flex-wrap">
           {pathSegments.length > 0 && (
@@ -128,9 +126,6 @@ export default function VolcanicAshPage() {
           />
         )}
       </main>
-       <footer className="w-full max-w-4xl text-center text-sm text-muted-foreground mt-8">
-        <p>&copy; {new Date().getFullYear()} NiMet-SADIS. {PRODUCT_NAME}.</p>
-      </footer>
     </div>
   );
-}
+} 

@@ -3,9 +3,8 @@ import type { ObjectId } from 'mongodb';
 
 export interface AppConfig {
   opmetPath: string;
-  sigmetPath: string;
-  volcanicAshPath: string;
-  tropicalCyclonePath: string;
+  sigwxPath: string;
+  griddedPath: string;
 }
 
 export interface LatestFileEntry {

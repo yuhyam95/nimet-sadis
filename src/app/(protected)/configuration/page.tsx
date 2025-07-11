@@ -17,9 +17,8 @@ import { submitConfiguration, getAppStatusAndLogs } from "@/lib/actions";
 
 const formSchema = z.object({
   opmetPath: z.string().min(1, "OPMET path is required."),
-  sigmetPath: z.string().min(1, "SIGMET path is required."),
-  volcanicAshPath: z.string().min(1, "Volcanic Ash path is required."),
-  tropicalCyclonePath: z.string().min(1, "Tropical Cyclone path is required."),
+  sigwxPath: z.string().min(1, "SIGWX path is required."),
+  griddedPath: z.string().min(1, "GRIDDED path is required."),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -33,9 +32,8 @@ export default function ConfigurationPage() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       opmetPath: "",
-      sigmetPath: "",
-      volcanicAshPath: "",
-      tropicalCyclonePath: "",
+      sigwxPath: "",
+      griddedPath: "",
     },
   });
 
@@ -99,10 +97,10 @@ export default function ConfigurationPage() {
       <header className="w-full max-w-3xl flex items-center justify-between">
         <div className="text-center md:text-left">
           <h1 className="text-4xl font-bold text-primary tracking-tight">
-            Local Folder Configuration
+            Configuration
           </h1>
           <p className="text-muted-foreground mt-2 text-lg">
-            Set the local directory paths for each data product.
+            Manage FTP and product folder configuration for GRIDDED, OPMET, and SIGWX data.
           </p>
         </div>
         <div className="md:hidden">
@@ -143,42 +141,28 @@ export default function ConfigurationPage() {
                     />
                     <FormField
                       control={form.control}
-                      name="sigmetPath"
+                      name="sigwxPath"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>SIGMET Path</FormLabel>
+                          <FormLabel>SIGWX Path</FormLabel>
                           <FormControl>
-                            <Input placeholder="/path/to/sigmet_files" {...field} disabled={isSubmitting} />
+                            <Input placeholder="/path/to/sigwx_files" {...field} disabled={isSubmitting} />
                           </FormControl>
-                          <FormDescription>Folder containing SIGMET data.</FormDescription>
+                          <FormDescription>Folder containing SIGWX data.</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
                     <FormField
                       control={form.control}
-                      name="volcanicAshPath"
+                      name="griddedPath"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Volcanic Ash Path</FormLabel>
+                          <FormLabel>GRIDDED Path</FormLabel>
                           <FormControl>
-                            <Input placeholder="/path/to/volcanic_ash_files" {...field} disabled={isSubmitting} />
+                            <Input placeholder="/path/to/gridded_files" {...field} disabled={isSubmitting} />
                           </FormControl>
-                          <FormDescription>Folder containing Volcanic Ash data.</FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                     <FormField
-                      control={form.control}
-                      name="tropicalCyclonePath"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Tropical Cyclone Path</FormLabel>
-                          <FormControl>
-                            <Input placeholder="/path/to/tropical_cyclone_files" {...field} disabled={isSubmitting} />
-                          </FormControl>
-                          <FormDescription>Folder containing Tropical Cyclone data.</FormDescription>
+                          <FormDescription>Folder containing GRIDDED data.</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}

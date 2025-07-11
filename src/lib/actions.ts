@@ -29,9 +29,8 @@ function addLog(message: string, type: AppLogEntry['type']) {
 
 const appConfigSchema = z.object({
   opmetPath: z.string().min(1, "OPMET path is required."),
-  sigmetPath: z.string().min(1, "SIGMET path is required."),
-  volcanicAshPath: z.string().min(1, "Volcanic Ash path is required."),
-  tropicalCyclonePath: z.string().min(1, "Tropical Cyclone path is required."),
+  sigwxPath: z.string().min(1, "SIGWX path is required."),
+  griddedPath: z.string().min(1, "GRIDDED path is required."),
 });
 
 
@@ -44,10 +43,9 @@ export interface ActionResponse {
 
 let currentAppConfig: AppConfig | null = null;
 const defaultPaths: AppConfig = {
-    opmetPath: 'local_storage/opmet',
-    sigmetPath: 'local_storage/sigmet',
-    volcanicAshPath: 'local_storage/volcanic_ash',
-    tropicalCyclonePath: 'local_storage/tropical_cyclone',
+    opmetPath: '/Users/user/Desktop/SADIS/OPMET',
+    sigwxPath: '/Users/user/Desktop/SADIS/SIGWX',
+    griddedPath: '/Users/user/Desktop/SADIS/GRIDDED',
 };
 if (!currentAppConfig) {
     currentAppConfig = defaultPaths;
@@ -59,9 +57,8 @@ export async function submitConfiguration(
 ): Promise<ActionResponse> {
   const rawData = {
     opmetPath: formData.get("opmetPath"),
-    sigmetPath: formData.get("sigmetPath"),
-    volcanicAshPath: formData.get("volcanicAshPath"),
-    tropicalCyclonePath: formData.get("tropicalCyclonePath"),
+    sigwxPath: formData.get("sigwxPath"),
+    griddedPath: formData.get("griddedPath"),
   };
   
   const validationResult = appConfigSchema.safeParse(rawData);
@@ -111,8 +108,14 @@ export async function getProductDirectoryListing(productKey: string, subPath: st
     return { success: false, error: "Application not configured." };
   }
 
-  const pathKey = `${productKey}Path`;
-  const basePath = (currentAppConfig as any)[pathKey];
+  // Map productKey to config key
+  const productKeyMap: Record<string, keyof AppConfig> = {
+    opmet: 'opmetPath',
+    sigwx: 'sigwxPath',
+    gridded: 'griddedPath',
+  };
+  const configKey = productKeyMap[productKey];
+  const basePath = configKey ? currentAppConfig[configKey] : undefined;
 
   if (!basePath) {
     return { success: false, error: `No path configured for product: ${productKey}` };
@@ -262,9 +265,8 @@ export async function getLatestFiles(): Promise<{ success: boolean; files?: Late
 
   const productPaths = {
     opmet: currentAppConfig.opmetPath,
-    sigmet: currentAppConfig.sigmetPath,
-    volcanicAsh: currentAppConfig.volcanicAshPath,
-    tropicalCyclone: currentAppConfig.tropicalCyclonePath,
+    sigwx: currentAppConfig.sigwxPath,
+    gridded: currentAppConfig.griddedPath,
   };
 
   for (const [productKey, basePath] of Object.entries(productPaths)) {
@@ -448,45 +450,60 @@ const loginSchema = z.object({
     password: z.string().min(1, "Password is required."),
 });
 
-export async function loginAction(formData: FormData): Promise<{ success: false; message: string } | void> {
-    const validatedFields = loginSchema.safeParse({
-        email: formData.get('email'),
-        password: formData.get('password'),
-    });
+export async function loginAction(formData: FormData): Promise<{ success: boolean; message: string } | void> {
+  const username = formData.get('username') as string;
+  const password = formData.get('password') as string;
 
-    if (!validatedFields.success) {
-        return { success: false, message: "Invalid email or password format." };
-    }
-    
-    const { email, password } = validatedFields.data;
+  const url = `https://edms.nimet.gov.ng/api/sadis/verifyuser`;
+  const fetchOptions = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ Username: username, Password: password }),
+  };
+  console.log('Fetch URL:', url);
+  console.log('Fetch options:', fetchOptions);
 
+  try {
+    const response = await fetch(url, fetchOptions); // POST with JSON body
+    console.log('Login: Response status', response.status);
+
+    const rawText = await response.text();
+    console.log('Login: Raw response text:', rawText);
+
+    let data;
     try {
-        const { db } = await connectToDatabase();
-        const usersCollection = db.collection<UserDocument>('users');
-        const user = await usersCollection.findOne({ email });
-
-        if (!user || !user.hashedPassword) {
-            return { success: false, message: "Invalid credentials." };
-        }
-
-        const passwordsMatch = await bcrypt.compare(password, user.hashedPassword);
-
-        if (!passwordsMatch) {
-            return { success: false, message: "Invalid credentials." };
-        }
-
-        await createSession(user._id!.toString(), user.username, user.roles);
-
-    } catch (error) {
-        console.error("Login error:", error);
-        return { success: false, message: "An error occurred during login." };
+      data = JSON.parse(rawText);
+    } catch (jsonErr) {
+      console.error('Login: Failed to parse JSON:', jsonErr);
+      return { success: false, message: "Invalid response from authentication server." };
     }
 
-    redirect('/');
+    console.log('External login API response:', data);
+
+    if (!data.IsSuccess) {
+      return { success: false, message: data.Message || "Invalid credentials." };
+    }
+
+    const user = data.User;
+    const roles = user?.roles || [];
+    const uname = user?.username || username;
+
+    await createSession(uname, uname, roles);
+
+    // Do not redirect here; let the client handle it
+    return { success: true, message: "Login successful." };
+  } catch (error) {
+    console.error('Login: Exception occurred', error);
+    return { success: false, message: "An error occurred during login." };
+  }
 }
 
 export async function logoutAction() {
     await deleteSession();
+    // Add a small delay to ensure the cookie is deleted before redirect
+    await new Promise(resolve => setTimeout(resolve, 100));
     redirect('/login');
 }
 

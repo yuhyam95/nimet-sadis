@@ -8,7 +8,7 @@ import { getSession } from "@/lib/auth";
 import type { AppConfig, SessionPayload, LatestFileEntry } from "@/types";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Cloud, AlertTriangle, MountainSnow, Tornado, Loader2, Download, Eye } from "lucide-react";
+import { Cloud, AlertTriangle, MountainSnow, Tornado, Loader2, Download, Eye, Network, FileText, Settings } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -65,24 +65,19 @@ export default function HomePage() {
 
   const dataProducts = [
     {
+      title: "GRIDDED",
+      href: "/gridded",
+      icon: Network,
+    },
+    {
       title: "OPMET",
       href: "/opmet",
       icon: Cloud,
     },
     {
-      title: "SIGMET",
-      href: "/sigmet",
+      title: "SIGWX",
+      href: "/sigwx",
       icon: AlertTriangle,
-    },
-    {
-      title: "Volcanic Ash",
-      href: "/volcanic-ash",
-      icon: MountainSnow,
-    },
-    {
-      title: "Tropical Cyclone",
-      href: "/tropical-cyclone",
-      icon: Tornado,
     },
   ];
 
