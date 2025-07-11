@@ -19,7 +19,7 @@ function addLog(message: string, type: AppLogEntry['type']) {
     id: crypto.randomUUID(),
     timestamp: new Date(),
     message,
-    type,
+    type, 
   };
   operationLogs.unshift(newLog); 
   if (operationLogs.length > MAX_LOGS) {

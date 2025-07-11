@@ -37,6 +37,10 @@ const isImageFile = (fileName: string) => {
     return /\.(jpe?g|png|gif|webp)$/i.test(fileName);
 };
 
+const isTextFile = (fileName: string) => {
+    return /\.txt$/i.test(fileName);
+};
+
 
 export function FetchedFilesList({ content, onFolderClick, productKey, currentPath }: FetchedFilesListProps) {
   const { toast } = useToast();
@@ -46,6 +50,7 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
   const [previewImageName, setPreviewImageName] = useState<string | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [previewFile, setPreviewFile] = useState<LocalFileEntry | null>(null);
+  const [previewText, setPreviewText] = useState<string | null>(null);
 
   useEffect(() => {
     // Cleanup blob URL on unmount
@@ -64,6 +69,7 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
           setPreviewImageUrl(null);
           setPreviewImageName(null);
           setPreviewFile(null);
+          setPreviewText(null);
       }
       setIsPreviewOpen(isOpen);
   }
@@ -86,11 +92,23 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
             } else {
                 throw new Error("Invalid file data format received");
             }
-            const blob = new Blob([byteArray], { type: result.contentType });
-            const imageUrl = URL.createObjectURL(blob);
-            setPreviewImageUrl(imageUrl);
+            if (isImageFile(file.name)) {
+                const blob = new Blob([byteArray], { type: result.contentType });
+                const imageUrl = URL.createObjectURL(blob);
+                setPreviewImageUrl(imageUrl);
+                setPreviewText(null);
+            } else if (isTextFile(file.name)) {
+                // Only preview first 100KB
+                const maxBytes = 100 * 1024;
+                const text = new TextDecoder('utf-8').decode(byteArray.slice(0, maxBytes));
+                setPreviewText(text);
+                setPreviewImageUrl(null);
+            } else {
+                toast({ title: "Preview Not Supported", description: "Preview is only available for images and .txt files.", variant: "destructive" });
+                handleDialogChange(false);
+            }
         } else {
-            toast({ title: "Preview Failed", description: result.error || "Could not load image.", variant: "destructive" });
+            toast({ title: "Preview Failed", description: result.error || "Could not load file.", variant: "destructive" });
             handleDialogChange(false);
         }
     } catch (error: any) {
@@ -203,7 +221,7 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
                                   </div>
                               </div>
                               <div className="flex items-center shrink-0">
-                                {isImageFile(file.name) && (
+                                {(isImageFile(file.name) || isTextFile(file.name)) && (
                                     <Button
                                         variant="ghost"
                                         size="icon"
@@ -262,8 +280,10 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
                 className="max-w-full max-h-full object-contain"
                 onLoad={() => URL.revokeObjectURL(previewImageUrl)}
               />
+            ) : previewText ? (
+              <pre className="w-full max-h-[60vh] overflow-auto bg-muted/40 p-4 rounded text-sm text-left whitespace-pre-wrap break-words">{previewText}</pre>
             ) : (
-              <p className="text-muted-foreground">Failed to load image</p>
+              <p className="text-muted-foreground">Failed to load preview</p>
             )}
           </div>
           <DialogFooter>
