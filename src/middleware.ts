@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { decrypt } from '@/lib/auth';
 
-const publicRoutes = ['/login'];
+const publicRoutes = ['/login', '/sso-login'];
 const adminRoutes = ['/user-management'];
 
 export async function middleware(req: NextRequest) {
