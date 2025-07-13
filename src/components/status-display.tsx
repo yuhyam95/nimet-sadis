@@ -66,7 +66,7 @@ export function StatusDisplay({ logs, status }: StatusDisplayProps) {
                         <LogIcon type={log.type} />
                         <div className="flex-1">
                             <p className="text-muted-foreground">
-                            {new Date(log.timestamp).toLocaleString()}
+                            {new Date(log.timestamp).toISOString().replace('T', ' ').slice(0, 19)}
                             </p>
                             <p className={`leading-snug ${
                                 log.type === 'error' ? 'text-destructive' : 
