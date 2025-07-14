@@ -284,7 +284,7 @@ export default function HomePage() {
       </footer>
 
       <Dialog open={isPreviewOpen} onOpenChange={handleDialogChange}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
+        <DialogContent className="w-[95vw] h-[95vh] max-w-none max-h-none">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
               <span>{previewImageName}</span>
@@ -295,7 +295,7 @@ export default function HomePage() {
               )}
             </DialogTitle>
           </DialogHeader>
-          <div className="flex justify-center items-center min-h-[400px]">
+          <div className="flex justify-center items-center w-full h-full overflow-hidden">
             {isLoadingPreview ? (
               <div className="flex items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />

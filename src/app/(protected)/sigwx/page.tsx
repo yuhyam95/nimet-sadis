@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useRouter } from "next/navigation";
 
 const PRODUCT_KEY = "sigwx";
 const PRODUCT_NAME = "SIGWX Data";
@@ -19,6 +20,7 @@ export default function SigwxPage() {
   const [isLoading, startLoadingTransition] = useTransition();
   const [pathSegments, setPathSegments] = useState<string[]>([]);
   const { toast } = useToast();
+  const router = useRouter();
 
   const currentPath = pathSegments.join('/');
 
@@ -52,7 +54,7 @@ export default function SigwxPage() {
   
   const handleBreadcrumbClick = (index: number) => {
     if (index < 0) {
-      setPathSegments([]);
+      router.push("/");
     } else {
       setPathSegments(prev => prev.slice(0, index + 1));
     }
@@ -80,25 +82,31 @@ export default function SigwxPage() {
         </div>
       </header>
       <main className="w-full max-w-4xl space-y-4">
+        <div className="flex items-center mb-2">
+          <button onClick={() => handleBreadcrumbClick(-1)} className="hover:text-primary p-2 rounded-md transition-colors">
+            <Home className="h-7 w-7"/>
+          </button>
+        </div>
         <div className="flex items-center gap-2 flex-wrap">
           {pathSegments.length > 0 && (
-             <Button variant="outline" size="sm" onClick={handleBackClick} disabled={isLoading}>
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back
-            </Button>
+            <Card className="w-full">
+              <CardContent className="p-0">
+                <div className="flex items-center text-base font-medium text-muted-foreground bg-muted/50 p-4 rounded-lg flex-grow">
+                  <Button variant="outline" size="sm" onClick={handleBackClick} disabled={isLoading} className="mr-4">
+                    <ArrowLeft className="mr-2 h-5 w-5" /> Back
+                  </Button>
+                  {pathSegments.map((segment, index) => (
+                    <div key={index} className="flex items-center">
+                      {index > 0 && <ChevronRight className="h-5 w-5 mx-2 shrink-0" />}
+                      <button onClick={() => handleBreadcrumbClick(index)} className="hover:text-primary p-2 rounded-md transition-colors text-left truncate text-lg">
+                        {segment}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
-          <div className="flex items-center text-sm text-muted-foreground bg-muted/50 p-2 rounded-md flex-grow">
-            <button onClick={() => handleBreadcrumbClick(-1)} className="hover:text-primary p-1 rounded-sm transition-colors">
-              <Home className="h-4 w-4"/>
-            </button>
-            {pathSegments.map((segment, index) => (
-              <div key={index} className="flex items-center">
-                <ChevronRight className="h-4 w-4 mx-1 shrink-0" />
-                <button onClick={() => handleBreadcrumbClick(index)} className="hover:text-primary p-1 rounded-sm transition-colors text-left truncate">
-                  {segment}
-                </button>
-              </div>
-            ))}
-          </div>
         </div>
 
         {isLoading ? (
