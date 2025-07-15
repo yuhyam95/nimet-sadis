@@ -13,10 +13,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
 
+
 const PRODUCT_KEY = "sigmet";
 const PRODUCT_NAME = "SIGMET Data";
 
 export default function SigmetPage() {
+
   const [directoryContent, setDirectoryContent] = useState<DirectoryContent | null>(null);
   const [isLoading, startLoadingTransition] = useTransition();
   const [pathSegments, setPathSegments] = useState<string[]>([]);

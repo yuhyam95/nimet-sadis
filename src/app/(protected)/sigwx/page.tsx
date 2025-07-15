@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
 
+
 const PRODUCT_KEY = "sigwx";
 const PRODUCT_NAME = "SIGWX Data";
 

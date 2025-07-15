@@ -12,10 +12,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
 
+
 const PRODUCT_KEY = "gridded";
 const PRODUCT_NAME = "GRIDDED Data";
 
 export default function GriddedPage() {
+
   const [directoryContent, setDirectoryContent] = useState<DirectoryContent | null>(null);
   const [isLoading, startLoadingTransition] = useTransition();
   const [pathSegments, setPathSegments] = useState<string[]>([]);
