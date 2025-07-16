@@ -59,7 +59,7 @@ export async function createSession(userId: string, username: string, roles: str
     secure: true,
     sameSite: 'none',
     path: '/',
-    domain: 'https://37.230.62.96/'
+    domain: 'https://sadis.nimet.gov.ng/'
   });
 }
 
