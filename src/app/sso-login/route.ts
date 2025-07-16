@@ -25,6 +25,12 @@ export async function GET(req: NextRequest) {
   console.log('Request URL:', req.url);
   console.log('Request method:', req.method);
   
+  // Log all search params
+  console.log('All search params:');
+  for (const [key, value] of req.nextUrl.searchParams.entries()) {
+    console.log(`${key}: ${value}`);
+  }
+  
   const token = req.nextUrl.searchParams.get('token');
   console.log('SSO token received:', token);
   if (!token) {
@@ -67,7 +73,13 @@ export async function GET(req: NextRequest) {
     
     await createSession(username, fullName, []);
     console.log('Session created successfully, redirecting to dashboard');
-    return NextResponse.redirect(new URL('/', req.url));
+    // After successful SSO login, redirect to / (protected root) with all original query params
+    const redirectUrl = new URL('/', req.url);
+    // Copy all search params from the original request
+    req.nextUrl.searchParams.forEach((value, key) => {
+      redirectUrl.searchParams.set(key, value);
+    });
+    return NextResponse.redirect(redirectUrl);
     
   } catch (error) {
     console.error('SSO login error:', error);

@@ -12,52 +12,40 @@ import { LogoutButton } from '@/components/auth/logout-button';
 import { getSession } from '@/lib/auth';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { SidebarDisplayProvider } from '@/components/ui/sidebar-display-provider';
+import { ShowQueryParams } from '@/components/show-query-params';
 
 export default async function ProtectedLayout({
   children,
-  searchParams,
 }: Readonly<{
   children: React.ReactNode;
-  searchParams: { [key: string]: string | string[] | undefined };
 }>) {
   const session = await getSession();
-  const showSidebar = searchParams?.nomenu !== 'yes';
   return (
-    <SidebarDisplayProvider showSidebar={showSidebar}>
+    <SidebarDisplayProvider showSidebar={true}>
       <SidebarProvider defaultOpen={true}>
-        {showSidebar && (
-          <Sidebar side="left" collapsible="icon" variant="sidebar">
-            <SidebarHeader className="p-4 flex flex-col items-center group-data-[collapsible=icon]:items-start">
-              <div
-                className="mb-4 flex items-center justify-center group-data-[collapsible=icon]:justify-start group-data-[collapsible=icon]:px-0.5 group-data-[collapsible=icon]:w-full cursor-default"
-              >
-                <Image
-                  src="https://nimet.gov.ng/assets/img/logo.png"
-                  alt="NiMet-SADIS Logo"
-                  width={80}
-                  height={40}
-                  className="h-10 w-10 object-contain"
-                />
-              </div>
-            </SidebarHeader>
-            <SidebarContent>
-              <AppSidebarNav session={session} />
-            </SidebarContent>
-            <SidebarFooter className="p-2 flex flex-col gap-2">
-              <div className="flex items-center gap-3 p-2 rounded-md bg-muted/50 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:size-10">
-                  <Avatar className="h-8 w-8">
-                      <AvatarFallback>{session?.username?.charAt(0).toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-                      <p className="text-sm font-medium text-foreground">{session?.username}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{session?.roles.join(', ')}</p>
-                  </div>
+        
+        <SidebarInset>
+          {/* Header bar: title left, user/logout right */}
+          <header className="w-full flex items-center bg-white justify-between gap-4 px-6 py-4 border-b bg-background/80 sticky top-0 z-30">
+            {/* Title box */}
+            <div className="flex items-center px-4 py-2">
+              <h1 className="text-2xl md:text-3xl font-bold text-primary tracking-tight">NiMet-SADIS</h1>
+            </div>
+            {/* User info and logout box */}
+            <div className="flex items-center gap-4 justify-between px-4 py-2">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback>{session?.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col">
+                  <p className="text-sm font-medium text-foreground">{session?.username}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{session?.roles.join(', ')}</p>
+                </div>
               </div>
               <LogoutButton />
-            </SidebarFooter>
-          </Sidebar>
-        )}
-        <SidebarInset>
+            </div>
+          </header>
+          <ShowQueryParams />
           {children}
         </SidebarInset>
       </SidebarProvider>

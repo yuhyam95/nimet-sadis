@@ -33,6 +33,9 @@ export default function HomePage() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState<LatestFileEntry | null>(null);
   const { toast } = useToast();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 10;
 
   useEffect(() => {
     async function fetchData() {
@@ -42,7 +45,7 @@ export default function HomePage() {
         const [statusResponse, sessionData, filesResponse] = await Promise.all([
           getAppStatusAndLogs(),
           getSession(),
-          getLatestFiles()
+          getLatestFiles(currentPage, pageSize)
         ]);
         if (statusResponse.config) {
           setConfig(statusResponse.config);
@@ -51,6 +54,7 @@ export default function HomePage() {
 
         if (filesResponse.success && filesResponse.files) {
             setLatestFiles(filesResponse.files);
+            setTotalCount(filesResponse.totalCount || 0);
         }
 
       } catch (error) {
@@ -61,7 +65,7 @@ export default function HomePage() {
       }
     }
     fetchData();
-  }, []);
+  }, [currentPage]);
 
   const dataProducts = [
     {
@@ -178,108 +182,130 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-start p-4 md:p-8 space-y-8 bg-background">
       <header className="w-full max-w-6xl flex items-center justify-between">
-        <div className="text-center md:text-left">
-          <h1 className="text-4xl font-bold text-primary tracking-tight">
-            Welcome to NiMet-SADIS
-          </h1>
-        </div>
         <div className="md:hidden">
           <SidebarTrigger />
         </div>
       </header>
 
-      <main className="w-full max-w-6xl space-y-8">
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle>Available Products</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-             {dataProducts.map((product) => (
-              <Card key={product.title} className="flex flex-col justify-between">
-                <CardHeader>
-                  <CardTitle className="flex items-center text-xl">
-                    <product.icon className="mr-3 h-6 w-6 text-primary" />
-                    {product.title}
-                  </CardTitle>
-                </CardHeader>
-                <CardFooter>
-                  <Button asChild className="w-full">
-                    <Link href={product.href}>View Data</Link>
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-lg">
+      <main className="w-full flex justify-center">
+        <div className="w-full max-w-5xl min-w-[80%] mx-auto space-y-8">
+          <Card className="shadow-lg">
             <CardHeader>
-                <CardTitle>Latest Files</CardTitle>
-                <CardDescription>
-                    A list of the 10 most recently updated files across all products.
-                </CardDescription>
+              <CardTitle>Available Products</CardTitle>
             </CardHeader>
-            <CardContent>
-                {isFilesLoading ? (
-                    <div className="flex justify-center items-center h-48">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    </div>
-                ) : latestFiles.length > 0 ? (
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>File Name</TableHead>
-                                <TableHead>Product</TableHead>
-                                <TableHead>Last Modified</TableHead>
-                                <TableHead>Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {latestFiles.map((file, index) => (
-                                <TableRow key={`${file.relativePath}-${index}`}>
-                                    <TableCell className="font-medium">{file.name}</TableCell>
-                                    <TableCell>{getProductDisplayName(file.product)}</TableCell>
-                                    <TableCell>{format(new Date(file.lastModified), "PPp")}</TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center space-x-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => handleFileDownload(file)}
-                                                disabled={downloadingFile === file.relativePath}
-                                                className="h-8 px-2"
-                                            >
-                                                {downloadingFile === file.relativePath ? (
-                                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                                ) : (
-                                                    <Download className="h-4 w-4" />
-                                                )}
-                                            </Button>
-                                            {isImageFile(file.name) && (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => handleFileView(file)}
-                                                    disabled={isLoadingPreview}
-                                                    className="h-8 px-2"
-                                                >
-                                                    <Eye className="h-4 w-4" />
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                ) : (
-                    <p className="text-center text-muted-foreground py-10">No files found in configured directories.</p>
-                )}
+            <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+               {dataProducts.map((product) => (
+                <Card key={product.title} className="flex flex-col justify-between">
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-xl">
+                      <product.icon className="mr-3 h-6 w-6 text-primary" />
+                      {product.title}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardFooter>
+                    <Button asChild className="w-full">
+                      <Link href={product.href}>View Data</Link>
+                    </Button>
+                  </CardFooter>
+                </Card>
+              ))}
             </CardContent>
-        </Card>
+          </Card>
 
+          <Card className="shadow-lg">
+              <CardHeader>
+                  <CardTitle>Latest Files</CardTitle>
+                  <CardDescription>
+                      A list of the recently updated files across all products.
+                  </CardDescription>
+              </CardHeader>
+              <CardContent>
+                  {isFilesLoading ? (
+                      <div className="flex justify-center items-center h-48">
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      </div>
+                  ) : latestFiles.length > 0 ? (
+                      <>
+                      <Table>
+                          <TableHeader>
+                              <TableRow>
+                                  <TableHead>File Name</TableHead>
+                                  <TableHead>Product</TableHead>
+                                  <TableHead>Last Modified</TableHead>
+                                  <TableHead>Actions</TableHead>
+                              </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                              {latestFiles.map((file, index) => (
+                                  <TableRow key={`${file.relativePath}-${index}`}>
+                                      <TableCell className="font-medium">{file.name}</TableCell>
+                                      <TableCell>{getProductDisplayName(file.product)}</TableCell>
+                                      <TableCell>{format(new Date(file.lastModified), "PPp")}</TableCell>
+                                      <TableCell>
+                                          <div className="flex items-center space-x-2">
+                                              <Button
+                                                  variant="outline"
+                                                  size="sm"
+                                                  onClick={() => handleFileDownload(file)}
+                                                  disabled={downloadingFile === file.relativePath}
+                                                  className="h-8 px-2"
+                                              >
+                                                  {downloadingFile === file.relativePath ? (
+                                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                                  ) : (
+                                                      <Download className="h-4 w-4" />
+                                                  )}
+                                              </Button>
+                                              {isImageFile(file.name) && (
+                                                  <Button
+                                                      variant="outline"
+                                                      size="sm"
+                                                      onClick={() => handleFileView(file)}
+                                                      disabled={isLoadingPreview}
+                                                      className="h-8 px-2"
+                                                  >
+                                                      <Eye className="h-4 w-4" />
+                                                  </Button>
+                                              )}
+                                          </div>
+                                      </TableCell>
+                                  </TableRow>
+                              ))}
+                          </TableBody>
+                      </Table>
+                      {/* Pagination Controls */}
+                      <div className="flex justify-between items-center mt-4">
+                        <span className="text-sm text-muted-foreground">
+                          Showing {(currentPage - 1) * pageSize + 1} - {Math.min(currentPage * pageSize, totalCount)} of {totalCount} files
+                        </span>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                          >
+                            Previous
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage((p) => p + 1)}
+                            disabled={currentPage * pageSize >= totalCount}
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                      </>
+                  ) : (
+                      <p className="text-center text-muted-foreground py-10">No files found in configured directories.</p>
+                  )}
+              </CardContent>
+          </Card>
+        </div>
       </main>
-      <footer className="w-full max-w-6xl text-center text-sm text-muted-foreground mt-8">
+      <footer className="w-full text-center text-sm text-muted-foreground mt-8">
         <p>&copy; {new Date().getFullYear()} NiMet-SADIS. Dashboard.</p>
       </footer>
 

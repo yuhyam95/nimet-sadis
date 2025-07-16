@@ -256,7 +256,7 @@ async function recursivelyFindFiles(directory: string, productKey: string, baseP
     return files;
 }
 
-export async function getLatestFiles(): Promise<{ success: boolean; files?: LatestFileEntry[]; error?: string }> {
+export async function getLatestFiles(page = 1, pageSize = 10): Promise<{ success: boolean; files?: LatestFileEntry[]; totalCount?: number; error?: string }> {
   if (!currentAppConfig) {
     return { success: false, error: "Application not configured." };
   }
@@ -283,8 +283,12 @@ export async function getLatestFiles(): Promise<{ success: boolean; files?: Late
   }
 
   allFiles.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+  const totalCount = allFiles.length;
+  const start = (page - 1) * pageSize;
+  const end = start + pageSize;
+  const pagedFiles = allFiles.slice(start, end);
 
-  return { success: true, files: allFiles.slice(0, 10) };
+  return { success: true, files: pagedFiles, totalCount };
 }
 
 
