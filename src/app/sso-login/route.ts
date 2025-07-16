@@ -73,11 +73,12 @@ export async function GET(req: NextRequest) {
     
     await createSession(username, fullName, []);
     console.log('Session created successfully, redirecting to dashboard');
-    // After successful SSO login, redirect to / (protected root) WITHOUT any query params
-    const host = req.headers.get('host');
-    const protocol = req.headers.get('x-forwarded-proto') || 'http';
-    const baseUrl = `${protocol}://${host}`;
-    const redirectUrl = new URL('/', baseUrl);
+    // After successful SSO login, redirect to / (protected root) with all original query params
+    const redirectUrl = new URL('/', req.url);
+    // Copy all search params from the original request
+    req.nextUrl.searchParams.forEach((value, key) => {
+      redirectUrl.searchParams.set(key, value);
+    });
     return NextResponse.redirect(redirectUrl);
     
   } catch (error) {
