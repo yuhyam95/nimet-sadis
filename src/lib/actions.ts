@@ -9,6 +9,7 @@ import { connectToDatabase } from './db';
 import bcrypt from 'bcryptjs';
 import { ObjectId } from 'mongodb';
 import { createSession, deleteSession, getSession } from './auth';
+import { getSessionToken, setSessionToken } from './session-client';
 import { redirect } from 'next/navigation';
 
 const operationLogs: AppLogEntry[] = [];
@@ -454,7 +455,7 @@ const loginSchema = z.object({
     password: z.string().min(1, "Password is required."),
 });
 
-export async function loginAction(formData: FormData): Promise<{ success: boolean; message: string } | void> {
+export async function loginAction(formData: FormData): Promise<{ success: boolean; message: string; token?: string } | void> {
   const username = formData.get('username') as string;
   const password = formData.get('password') as string;
 
@@ -466,6 +467,13 @@ export async function loginAction(formData: FormData): Promise<{ success: boolea
     },
     body: JSON.stringify({ Username: username, Password: password }),
   };
+  // Attach Authorization header if token exists (client-side)
+  if (typeof window !== 'undefined') {
+    const token = getSessionToken();
+    if (token) {
+      (fetchOptions.headers as any)['Authorization'] = `Bearer ${token}`;
+    }
+  }
   console.log('Fetch URL:', url);
   console.log('Fetch options:', fetchOptions);
 
@@ -487,6 +495,7 @@ export async function loginAction(formData: FormData): Promise<{ success: boolea
     console.log('External login API response:', data);
 
     if (!data.IsSuccess) {
+      console.error('Login failed: ', data.Message);
       return { success: false, message: data.Message || "Invalid credentials." };
     }
 
@@ -494,10 +503,18 @@ export async function loginAction(formData: FormData): Promise<{ success: boolea
     const roles = user?.roles || [];
     const uname = user?.username || username;
 
-    await createSession(uname, uname, roles);
+    // createSession now returns the token
+    const token = await createSession(uname, uname, roles);
+    setSessionToken(token);
 
-    // Do not redirect here; let the client handle it
-    return { success: true, message: "Login successful." };
+    if (!token) {
+      console.error('No token returned from createSession');
+      return { success: false, message: 'No token returned from createSession.' };
+    }
+
+    const result = { success: true, message: "Login successful.", token };
+    console.log('loginAction result:', result);
+    return result;
   } catch (error) {
     console.error('Login: Exception occurred', error);
     return { success: false, message: "An error occurred during login." };

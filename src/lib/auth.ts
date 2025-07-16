@@ -2,7 +2,6 @@
 'use server';
 
 import { SignJWT, jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
 import type { SessionPayload } from '@/types';
 
 // IMPORTANT: Set this in your .env.local file
@@ -40,37 +39,28 @@ export async function decrypt(session: string | undefined = ''): Promise<Session
     });
     return payload as unknown as SessionPayload;
   } catch (error) {
-    // It's normal for this to fail if the cookie is invalid or expired
+    // It's normal for this to fail if the token is invalid or expired
     console.log('Failed to verify session.');
     return null;
   }
 }
 
-export async function createSession(userId: string, username: string, roles: string[]) {
+// --- LocalStorage Fallback for Client ---
+
+// Only available in browser
+
+export async function createSession(userId: string, username: string, roles: string[]): Promise<string> {
   const sessionPayload: SessionPayload = { userId, username, roles };
-
   const session = await encrypt(sessionPayload);
-
-  // By not setting `expires`, the cookie becomes a session cookie.
-  // It will be deleted when the browser is closed.
-  const cookieStore = await cookies();
-  cookieStore.set('session', session, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'none',
-    path: '/',
-    domain: 'https://sadis.nimet.gov.ng/'
-  });
-}
-
-export async function getSession(): Promise<SessionPayload | null> {
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get('session')?.value;
-  const session = await decrypt(sessionCookie);
   return session;
 }
 
+export async function getSession(): Promise<SessionPayload | null> {
+  // const token = getSessionToken(); // Removed localStorage fallback
+  // return await decrypt(token || undefined);
+  return null; // No session token available in this file
+}
+
 export async function deleteSession() {
-  const cookieStore = await cookies();
-  cookieStore.delete('session');
+  // removeSessionToken(); // Removed localStorage fallback
 }

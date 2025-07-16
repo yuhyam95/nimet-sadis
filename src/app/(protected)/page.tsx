@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { getAppStatusAndLogs, getLatestFiles, downloadLocalFile } from "@/lib/actions";
-import { getSession } from "@/lib/auth";
 import type { AppConfig, SessionPayload, LatestFileEntry } from "@/types";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -42,15 +41,25 @@ export default function HomePage() {
       setIsLoading(true);
       setIsFilesLoading(true);
       try {
-        const [statusResponse, sessionData, filesResponse] = await Promise.all([
+        // Check for SSO redirect
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href);
+          if (url.searchParams.get('sso') === '1') {
+            // Ensure session token is set in localStorage
+            // Removed getSessionClient()
+            // Remove sso param from URL (optional, for cleanliness)
+            url.searchParams.delete('sso');
+            window.history.replaceState({}, '', url.pathname + url.search);
+          }
+        }
+        const [statusResponse, filesResponse] = await Promise.all([
           getAppStatusAndLogs(),
-          getSession(),
           getLatestFiles(currentPage, pageSize)
         ]);
         if (statusResponse.config) {
           setConfig(statusResponse.config);
         }
-        setSession(sessionData);
+        // Removed setSession(sessionData);
 
         if (filesResponse.success && filesResponse.files) {
             setLatestFiles(filesResponse.files);

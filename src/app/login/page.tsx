@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { AlertCircle, LogIn, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
+import { setSessionToken } from '@/lib/session-client';
 
 
 export default function LoginPage() {
@@ -25,16 +26,17 @@ export default function LoginPage() {
     const handleSubmit = (formData: FormData) => {
         startTransition(async () => {
             const result = await loginAction(formData);
-            // If the action returns a result, it's an error because
-            // a successful login will redirect and never return here.
             if (result && !result.success) {
                  toast({
                     title: 'Login Failed',
                     description: result.message,
                     variant: 'destructive',
                 });
+            } else if (result && result.token) {
+                setSessionToken(result.token);
+                window.location.href = '/';
             } else if (!result || result.success) {
-                // Manually redirect on success
+                // Fallback: just redirect if no token returned
                 window.location.href = '/';
             }
         });
