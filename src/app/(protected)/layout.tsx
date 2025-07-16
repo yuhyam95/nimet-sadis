@@ -45,7 +45,6 @@ export default async function ProtectedLayout({
               <LogoutButton />
             </div>
           </header>
-          <ShowQueryParams />
           {children}
         </SidebarInset>
       </SidebarProvider>
