@@ -43,9 +43,9 @@ export interface ActionResponse {
 
 let currentAppConfig: AppConfig | null = null;
 const defaultPaths: AppConfig = {
-    opmetPath: '/Users/user/Desktop/SADIS/OPMET',
-    sigwxPath: '/Users/user/Desktop/SADIS/SIGWX',
-    griddedPath: '/Users/user/Desktop/SADIS/GRIDDED',
+    opmetPath: '/root/SADIS-Visualization/Latest_Outputs/OPMET',
+    sigwxPath: '/root/SADIS-Visualization/Latest_Outputs/SIGWX',
+    griddedPath: '/root/SADIS-Visualization/Latest_Outputs/GRIDDED',
 };
 if (!currentAppConfig) {
     currentAppConfig = defaultPaths;
