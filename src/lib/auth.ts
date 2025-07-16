@@ -56,9 +56,10 @@ export async function createSession(userId: string, username: string, roles: str
   const cookieStore = await cookies();
   cookieStore.set('session', session, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: true,
+    sameSite: 'none',
     path: '/',
+    domain: 'https://37.230.62.96/'
   });
 }
 
