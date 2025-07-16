@@ -73,8 +73,7 @@ export async function GET(req: NextRequest) {
     
     await createSession(username, fullName, []);
     console.log('Session created successfully, redirecting to dashboard');
-    // After successful SSO login, redirect to / (protected root) WITHOUT any query params
-    // Add ?sso=1 to indicate SSO just happened
+    // After successful SSO login, redirect to / (protected root) WITH ?sso=1 so the client can handle session setup
     const host = req.headers.get('host');
     const protocol = req.headers.get('x-forwarded-proto') || 'http';
     const baseUrl = `${protocol}://${host}`;
