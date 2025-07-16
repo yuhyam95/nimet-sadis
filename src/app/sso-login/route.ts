@@ -31,9 +31,9 @@ export async function GET(req: NextRequest) {
     console.log(`${key}: ${value}`);
   }
   
-  const token = req.nextUrl.searchParams.get('token');
-  console.log('SSO token received:', token);
-  if (!token) {
+  const ssoToken = req.nextUrl.searchParams.get('token');
+  console.log('SSO token received:', ssoToken);
+  if (!ssoToken) {
     console.log('No token provided, redirecting to login');
     return NextResponse.redirect('/login');
   }
@@ -43,12 +43,12 @@ export async function GET(req: NextRequest) {
     // Call the external API to validate the token (POST with JSON body)
     const apiUrl = 'https://edms.nimet.gov.ng/api/sadis/checkuser';
     console.log('API URL:', apiUrl);
-    console.log('Request body:', JSON.stringify({ dataencrypted: token }));
+    console.log('Request body:', JSON.stringify({ dataencrypted: ssoToken }));
     
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dataencrypted: token })
+      body: JSON.stringify({ dataencrypted: ssoToken })
     });
     console.log('SSO API response status:', response.status, response.statusText);
     const responseText = await response.text();
@@ -71,14 +71,14 @@ export async function GET(req: NextRequest) {
     const fullName = `${data.FirstName} ${data.Othernames} ${data.Surname}`.trim();
     console.log('Creating session for user:', username, 'with name:', fullName);
     
-    await createSession(username, fullName, []);
-    console.log('Session created successfully, redirecting to dashboard');
-    // After successful SSO login, redirect to / (protected root) WITH ?sso=1 so the client can handle session setup
+    const token = await createSession(username, fullName, []);
+    // After successful SSO login, redirect to / (protected root) WITH ?sso=1 and token=... so the client can handle session setup
     const host = req.headers.get('host');
     const protocol = req.headers.get('x-forwarded-proto') || 'http';
     const baseUrl = `${protocol}://${host}`;
     const redirectUrl = new URL('/', baseUrl);
     redirectUrl.searchParams.set('sso', '1');
+    redirectUrl.searchParams.set('token', token);
     return NextResponse.redirect(redirectUrl);
     
   } catch (error) {

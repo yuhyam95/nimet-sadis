@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getSessionToken } from '@/lib/session-client';
+import { getSessionToken, setSessionToken } from '@/lib/session-client';
 import { jwtDecode } from 'jwt-decode';
 import {
     Sidebar,
@@ -27,6 +27,18 @@ export default function ProtectedLayout({
   const [session, setSession] = useState<any>(undefined); // undefined = loading
 
   useEffect(() => {
+    // Handle SSO token from URL
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      const sso = url.searchParams.get('sso');
+      const tokenFromUrl = url.searchParams.get('token');
+      if (sso === '1' && tokenFromUrl) {
+        setSessionToken(tokenFromUrl);
+        url.searchParams.delete('sso');
+        url.searchParams.delete('token');
+        window.history.replaceState({}, '', url.pathname + url.search);
+      }
+    }
     const token = getSessionToken();
     console.log('Layout token:', token);
     if (!token) {
@@ -34,7 +46,6 @@ export default function ProtectedLayout({
       router.replace('/login');
       return;
     }
-    // Decode JWT to get session info
     try {
       const decoded = jwtDecode(token);
       console.log('Decoded session:', decoded);
