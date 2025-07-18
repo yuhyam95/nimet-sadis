@@ -505,7 +505,7 @@ export async function loginAction(formData: FormData): Promise<{ success: boolea
 
     // createSession now returns the token
     const token = await createSession(uname, uname, roles);
-    setSessionToken(token);
+    // setSessionToken(token); // Removed: should only be called on the client
 
     if (!token) {
       console.error('No token returned from createSession');
