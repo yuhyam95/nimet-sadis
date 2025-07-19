@@ -4,7 +4,7 @@ import type { DirectoryContent, LocalFileEntry } from "@/types";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { FileText, Folder, Clock, Download, Loader2, Eye, Search } from "lucide-react";
+import { FileText, Folder, Clock, Download, Loader2, Eye, Search, X } from "lucide-react";
 import { format } from 'date-fns';
 import React, { useState, useEffect } from "react";
 import { downloadLocalFile } from "@/lib/actions"; 
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 interface FetchedFilesListProps {
   content: DirectoryContent | null;
@@ -54,7 +55,8 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
   const [previewFile, setPreviewFile] = useState<LocalFileEntry | null>(null);
   const [previewText, setPreviewText] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string>("ALL");
-  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [searchTerms, setSearchTerms] = useState<string[]>([]);
+  const [searchInput, setSearchInput] = useState<string>("");
 
   useEffect(() => {
     // Cleanup blob URL on unmount
@@ -75,7 +77,8 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
           setPreviewFile(null);
           setPreviewText(null);
           setFilterType("ALL");
-          setSearchTerm("");
+          setSearchTerms([]);
+          setSearchInput("");
       }
       setIsPreviewOpen(isOpen);
   }
@@ -155,10 +158,12 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
       reports = previewText.split('\n');
     }
     
-    // Filter by search term - apply to complete reports, not individual lines
-    if (searchTerm) {
+    // Filter by search terms - apply to complete reports, not individual lines
+    if (searchTerms.length > 0) {
       reports = reports.filter(report => 
-        report.toLowerCase().includes(searchTerm.toLowerCase())
+        searchTerms.some(term => 
+          report.toLowerCase().includes(term.toLowerCase())
+        )
       );
     }
     
@@ -373,14 +378,46 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
                   <SelectItem value="METAR">METAR</SelectItem>
                 </SelectContent>
               </Select>
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search in file..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+              <div className="flex-1 max-w-md space-y-2">
+                {/* Search input */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Type keyword and press Enter..."
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && searchInput.trim()) {
+                        e.preventDefault();
+                        const newTerm = searchInput.trim();
+                        if (!searchTerms.includes(newTerm)) {
+                          setSearchTerms([...searchTerms, newTerm]);
+                        }
+                        setSearchInput("");
+                      }
+                    }}
+                    className="pl-10"
+                  />
+                </div>
+                
+                {/* Search terms display */}
+                {searchTerms.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {searchTerms.map((term, index) => (
+                      <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                        {term}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                          onClick={() => setSearchTerms(searchTerms.filter((_, i) => i !== index))}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
