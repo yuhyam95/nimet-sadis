@@ -156,7 +156,7 @@ export async function getProductDirectoryListing(productKey: string, subPath: st
     }
     
     folders.sort((a, b) => a.localeCompare(b));
-    files.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+    // files.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime()); // Removed sorting to preserve directory order
     
     return { success: true, content: { files, folders } };
 
