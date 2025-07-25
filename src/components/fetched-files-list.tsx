@@ -4,7 +4,7 @@ import type { DirectoryContent, LocalFileEntry } from "@/types";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { FileText, Folder, Clock, Download, Loader2, Eye } from "lucide-react";
+import { FileText, Folder, Clock, Download, Loader2, Eye, Search, X } from "lucide-react";
 import { format } from 'date-fns';
 import React, { useState, useEffect } from "react";
 import { downloadLocalFile } from "@/lib/actions"; 
@@ -16,6 +16,9 @@ import {
   DialogTitle,
   DialogFooter
 } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 interface FetchedFilesListProps {
   content: DirectoryContent | null;
@@ -51,6 +54,9 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [previewFile, setPreviewFile] = useState<LocalFileEntry | null>(null);
   const [previewText, setPreviewText] = useState<string | null>(null);
+  const [filterType, setFilterType] = useState<string>("ALL");
+  const [searchTerms, setSearchTerms] = useState<string[]>([]);
+  const [searchInput, setSearchInput] = useState<string>("");
 
   useEffect(() => {
     // Cleanup blob URL on unmount
@@ -70,9 +76,99 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
           setPreviewImageName(null);
           setPreviewFile(null);
           setPreviewText(null);
+          setFilterType("ALL");
+          setSearchTerms([]);
+          setSearchInput("");
       }
       setIsPreviewOpen(isOpen);
   }
+
+  // Filter text content based on type and search term
+  const getFilteredText = () => {
+    if (!previewText) return "";
+    
+    let filteredText = previewText;
+    let reports: string[] = [];
+    
+    // Filter by type
+    if (filterType === "TAF") {
+      const lines = previewText.split('\n');
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        // More precise TAF detection - must start with TAF and contain typical TAF elements
+        if (line.trim().startsWith('TAF') && line.includes('Z')) {
+          let tafReport = line;
+          let j = i + 1;
+          
+          // If the current line already ends with '=', this is a single-line TAF
+          if (line.includes('=')) {
+            reports.push(tafReport);
+            continue; // Move to next line
+          }
+          
+          // Continue reading lines until we find the '=' sign
+          while (j < lines.length && !lines[j].includes('=')) {
+            tafReport += '\n' + lines[j];
+            j++;
+          }
+          
+          // Include the line with '=' if found
+          if (j < lines.length && lines[j].includes('=')) {
+            tafReport += '\n' + lines[j];
+          }
+          
+          reports.push(tafReport);
+          i = j; // Skip the lines we've already processed
+        }
+      }
+    } else if (filterType === "METAR") {
+      const lines = previewText.split('\n');
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        // More precise METAR detection - must start with METAR and contain typical METAR elements
+        if (line.trim().startsWith('METAR') && line.includes('Z')) {
+          let metarReport = line;
+          let j = i + 1;
+          
+          // If the current line already ends with '=', this is a single-line METAR
+          if (line.includes('=')) {
+            reports.push(metarReport);
+            continue; // Move to next line
+          }
+          
+          // Continue reading lines until we find the '=' sign
+          while (j < lines.length && !lines[j].includes('=')) {
+            metarReport += '\n' + lines[j];
+            j++;
+          }
+          
+          // Include the line with '=' if found
+          if (j < lines.length && lines[j].includes('=')) {
+            metarReport += '\n' + lines[j];
+          }
+          
+          reports.push(metarReport);
+          i = j; // Skip the lines we've already processed
+        }
+      }
+    } else {
+      // ALL filter - split by lines for search
+      reports = previewText.split('\n');
+    }
+    
+    // Filter by search terms - apply to complete reports, not individual lines
+    if (searchTerms.length > 0) {
+      reports = reports.filter(report => 
+        searchTerms.some(term => 
+          report.toLowerCase().includes(term.toLowerCase())
+        )
+      );
+    }
+    
+    return reports.join('\n\n');
+  };
 
   const handleFileView = async (file: LocalFileEntry) => {
     const fullFilePath = [currentPath, file.name].filter(Boolean).join('/');
@@ -260,7 +356,7 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
         <DialogContent className="w-[95vw] h-[95vh] max-w-none max-h-none">
           <DialogHeaderPrimitive>
             <DialogTitle className="flex items-center justify-between">
-              <span>{previewImageName || 'Image Preview'}</span>
+              <span>{previewImageName || 'File Preview'}</span>
               {previewFile && (
                 <span className="text-sm text-muted-foreground">
                   {format(new Date(previewFile.lastModified), "PPp")}
@@ -268,6 +364,64 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
               )}
             </DialogTitle>
           </DialogHeaderPrimitive>
+          
+          {/* Filter controls for .txt files */}
+          {previewText && (
+            <div className="flex items-center gap-4 p-4 border-b">
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue placeholder="Filter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">ALL</SelectItem>
+                  <SelectItem value="TAF">TAF</SelectItem>
+                  <SelectItem value="METAR">METAR</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="flex-1 max-w-md space-y-2">
+                {/* Search input */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Type keyword and press Enter..."
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && searchInput.trim()) {
+                        e.preventDefault();
+                        const newTerm = searchInput.trim();
+                        if (!searchTerms.includes(newTerm)) {
+                          setSearchTerms([...searchTerms, newTerm]);
+                        }
+                        setSearchInput("");
+                      }
+                    }}
+                    className="pl-10"
+                  />
+                </div>
+                
+                {/* Search terms display */}
+                {searchTerms.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {searchTerms.map((term, index) => (
+                      <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                        {term}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                          onClick={() => setSearchTerms(searchTerms.filter((_, i) => i !== index))}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
           <div className="flex justify-center items-center w-full h-full overflow-hidden">
             {isLoadingPreview ? (
               <div className="flex items-center justify-center">
@@ -281,7 +435,9 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
                 onLoad={() => URL.revokeObjectURL(previewImageUrl)}
               />
             ) : previewText ? (
-              <pre className="w-full max-h-[60vh] overflow-auto bg-muted/40 p-4 rounded text-sm text-left whitespace-pre-wrap break-words">{previewText}</pre>
+              <pre className="w-full max-h-[60vh] overflow-auto bg-muted/40 p-4 rounded text-sm text-left whitespace-pre-wrap break-words">
+                {getFilteredText()}
+              </pre>
             ) : (
               <p className="text-muted-foreground">Failed to load preview</p>
             )}
