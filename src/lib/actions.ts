@@ -9,7 +9,7 @@ import { connectToDatabase } from './db';
 import bcrypt from 'bcryptjs';
 import { ObjectId } from 'mongodb';
 import { createSession, deleteSession, getSession } from './auth';
-import { getSessionToken, setSessionToken } from './session-client';
+// import { getSessionToken, setSessionToken } from './session-client'; // Removed session-client import
 import { redirect } from 'next/navigation';
 
 const operationLogs: AppLogEntry[] = [];
@@ -465,15 +465,16 @@ export async function loginAction(formData: FormData): Promise<{ success: boolea
     headers: {
       'Content-Type': 'application/json',
     },
+    // Remove encryption: Pass credentials directly
     body: JSON.stringify({ Username: username, Password: password }),
   };
   // Attach Authorization header if token exists (client-side)
-  if (typeof window !== 'undefined') {
-    const token = getSessionToken();
-    if (token) {
-      (fetchOptions.headers as any)['Authorization'] = `Bearer ${token}`;
-    }
-  }
+  // if (typeof window !== 'undefined') {
+  //   const token = getSessionToken();
+  //   if (token) {
+  //     (fetchOptions.headers as any)['Authorization'] = `Bearer ${token}`;
+  //   }
+  // } // Removed token logic
   console.log('Fetch URL:', url);
   console.log('Fetch options:', fetchOptions);
 
@@ -499,20 +500,8 @@ export async function loginAction(formData: FormData): Promise<{ success: boolea
       return { success: false, message: data.Message || "Invalid credentials." };
     }
 
-    const user = data.User;
-    const roles = user?.roles || [];
-    const uname = user?.username || username;
-
-    // createSession now returns the token
-    const token = await createSession(uname, uname, roles);
-    setSessionToken(token);
-
-    if (!token) {
-      console.error('No token returned from createSession');
-      return { success: false, message: 'No token returned from createSession.' };
-    }
-
-    const result = { success: true, message: "Login successful.", token };
+    // Authentication successful, no need to create/set session token locally
+    const result = { success: true, message: "Login successful." }; // Removed token from result
     console.log('loginAction result:', result);
     return result;
   } catch (error) {

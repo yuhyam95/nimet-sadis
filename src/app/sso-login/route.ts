@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
     // Call the external API to validate the token (POST with JSON body)
     const apiUrl = 'https://edms.nimet.gov.ng/api/sadis/checkuser';
     console.log('API URL:', apiUrl);
+    // Remove encryption: Pass token directly
     console.log('Request body:', JSON.stringify({ dataencrypted: ssoToken }));
     
     const response = await fetch(apiUrl, {
@@ -66,23 +67,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect('/login');
     }
 
-    // Create session with user data from API response
-    const username = data.Username;
-    const fullName = `${data.FirstName} ${data.Othernames} ${data.Surname}`.trim();
-    console.log('Creating session for user:', username, 'with name:', fullName);
-    
-    const token = await createSession(username, fullName, []);
-    // After successful SSO login, redirect to / (protected root) WITH ?sso=1 and token=... so the client can handle session setup
-    const host = req.headers.get('host');
-    const protocol = req.headers.get('x-forwarded-proto') || 'http';
-    const baseUrl = `${protocol}://${host}`;
-    const redirectUrl = new URL('/', baseUrl);
-    redirectUrl.searchParams.set('sso', '1');
-    redirectUrl.searchParams.set('token', token);
-    return NextResponse.redirect(redirectUrl);
+    // Authentication successful, redirect to home
+    console.log('SSO login successful. Redirecting to home.');
+    return NextResponse.redirect(new URL('/', req.url));
     
   } catch (error) {
     console.error('SSO login error:', error);
     return NextResponse.redirect(new URL('/login', req.url));
   }
-} 
+}

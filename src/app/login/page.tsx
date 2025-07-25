@@ -32,11 +32,8 @@ export default function LoginPage() {
                     description: result.message,
                     variant: 'destructive',
                 });
-            } else if (result && result.token) {
-                setSessionToken(result.token);
-                window.location.href = '/';
-            } else if (!result || result.success) {
-                // Fallback: just redirect if no token returned
+            } else if (result && result.success) {
+                // Authentication successful, redirect to home
                 window.location.href = '/';
             }
         });

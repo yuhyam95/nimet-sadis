@@ -10,15 +10,22 @@ let secretKey = process.env.SESSION_SECRET;
 
 if (!secretKey) {
   secretKey = 'this-is-a-temporary-and-insecure-secret-key-for-development';
-  console.warn(
-    '\n' +
-    '******************************************************************************************\n' +
-    '** WARNING: SESSION_SECRET is not set in your .env.local file.                        **\n' +
-    '** Using a default, insecure key for development purposes.                            **\n' +
-    '** For production, please generate a strong secret and add it to your .env.local file.**\n' +
-    '** Example: `openssl rand -base64 32`                                                 **\n' +
-    '******************************************************************************************\n'
-  );
+//   console.warn(
+//     '
+// ' +
+//     '******************************************************************************************
+// ' +
+//     '** WARNING: SESSION_SECRET is not set in your .env.local file.                        **
+// ' +
+//     '** Using a default, insecure key for development purposes.                            **
+// ' +
+//     '** For production, please generate a strong secret and add it to your .env.local file.**
+// ' +
+//     '** Example: `openssl rand -base64 32`                                                 **
+// ' +
+//     '******************************************************************************************
+// '
+//   );
 }
 
 const key = new TextEncoder().encode(secretKey);
@@ -30,7 +37,6 @@ export async function encrypt(payload: any) {
     .setIssuedAt()
     .sign(key);
 }
-
 export async function decrypt(session: string | undefined = ''): Promise<SessionPayload | null> {
   if (!session) return null;
   try {
@@ -50,17 +56,15 @@ export async function decrypt(session: string | undefined = ''): Promise<Session
 // Only available in browser
 
 export async function createSession(userId: string, username: string, roles: string[]): Promise<string> {
-  const sessionPayload: SessionPayload = { userId, username, roles };
-  const session = await encrypt(sessionPayload);
-  return session;
+  // No longer encrypting/creating a session token
+  return ""; // Return empty string or null as session token is not used
 }
 
 export async function getSession(): Promise<SessionPayload | null> {
-  // const token = getSessionToken(); // Removed localStorage fallback
-  // return await decrypt(token || undefined);
-  return null; // No session token available in this file
+  // No longer using session tokens
+  return null;
 }
 
 export async function deleteSession() {
-  // removeSessionToken(); // Removed localStorage fallback
+  // No longer using session tokens
 }
