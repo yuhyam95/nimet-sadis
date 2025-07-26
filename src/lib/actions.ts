@@ -32,7 +32,6 @@ const appConfigSchema = z.object({
   opmetPath: z.string().min(1, "OPMET path is required."),
   sigwxPath: z.string().min(1, "SIGWX path is required."),
   griddedPath: z.string().min(1, "GRIDDED path is required."),
-  vaaPath: z.string().min(1, "VAA path is required."),
 });
 
 
@@ -45,10 +44,9 @@ export interface ActionResponse {
 
 let currentAppConfig: AppConfig | null = null;
 const defaultPaths: AppConfig = {
-    opmetPath: '/home/nimet/ SADIS-Visualization/Latest_Outputs/OPMET',
-    sigwxPath: '/home/nimet/ SADIS-Visualization/Latest_Outputs/SIGWX',
-    griddedPath: '/home/nimet/ SADIS-Visualization/Latest_Outputs/GRIDDED',
-    vaaPath: '/home/nimet/ SADIS-Visualization/Latest_Outputs/VAA',
+    opmetPath: '/root/SADIS-Visualization/Latest_Outputs/OPMET',
+    sigwxPath: '/root/SADIS-Visualization/Latest_Outputs/SIGWX',
+    griddedPath: '/root/SADIS-Visualization/Latest_Outputs/GRIDDED',
 };
 if (!currentAppConfig) {
     currentAppConfig = defaultPaths;
@@ -116,7 +114,6 @@ export async function getProductDirectoryListing(productKey: string, subPath: st
     opmet: 'opmetPath',
     sigwx: 'sigwxPath',
     gridded: 'griddedPath',
-    vaa: 'vaaPath',
   };
   const configKey = productKeyMap[productKey];
   const basePath = configKey ? currentAppConfig[configKey] : undefined;
@@ -271,7 +268,6 @@ export async function getLatestFiles(page = 1, pageSize = 10): Promise<{ success
     opmet: currentAppConfig.opmetPath,
     sigwx: currentAppConfig.sigwxPath,
     gridded: currentAppConfig.griddedPath,
-    vaa: currentAppConfig.vaaPath
   };
 
   for (const [productKey, basePath] of Object.entries(productPaths)) {
