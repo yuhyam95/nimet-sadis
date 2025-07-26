@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { getAppStatusAndLogs, getLatestFiles, downloadLocalFile } from "@/lib/actions";
@@ -18,8 +18,9 @@ import {
   DialogTitle,
   DialogFooter
 } from "@/components/ui/dialog";
+import { useSearchParams } from 'next/navigation';
 
-export default function HomePage() {
+function HomePageContent() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [session, setSession] = useState<SessionPayload | null>(null);
@@ -36,6 +37,8 @@ export default function HomePage() {
   const [totalCount, setTotalCount] = useState(0);
   const pageSize = 10;
 
+  const searchParams = useSearchParams();
+
   useEffect(() => {
     async function fetchData() {
       setIsLoading(true);
@@ -44,7 +47,7 @@ export default function HomePage() {
         // Check for SSO redirect
         if (typeof window !== 'undefined') {
           const url = new URL(window.location.href);
-          if (url.searchParams.get('sso') === '1') {
+          if (searchParams.get('sso') === '1') {
             // Ensure session token is set in localStorage
             // Removed getSessionClient()
             // Remove sso param from URL (optional, for cleanliness)
@@ -74,7 +77,7 @@ export default function HomePage() {
       }
     }
     fetchData();
-  }, [currentPage]);
+  }, [currentPage, searchParams]); // Added searchParams dependency
 
   const dataProducts = [
     {
@@ -377,5 +380,13 @@ export default function HomePage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <HomePageContent />
+    </Suspense>
   );
 }

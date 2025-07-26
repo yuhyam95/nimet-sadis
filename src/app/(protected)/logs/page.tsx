@@ -1,17 +1,20 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, Suspense } from "react";
 import { StatusDisplay } from "@/components/status-display";
 import type { LogEntry, AppStatus } from "@/types";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { getAppStatusAndLogs } from "@/lib/actions"; 
+import { getAppStatusAndLogs } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
+import { useSearchParams } from 'next/navigation';
 
-export default function LogsPage() {
+function LogsPageContent() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [currentStatus, setCurrentStatus] = useState<AppStatus>("idle");
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  const searchParams = useSearchParams();
 
   const addUiLogEntry = useCallback((newLog: Omit<LogEntry, 'id' | 'timestamp'>) => {
     setLogs((prevLogs) => [
@@ -25,7 +28,7 @@ export default function LogsPage() {
     try {
       const { status, logs: serverLogs } = await getAppStatusAndLogs();
       setLogs(serverLogs);
-      setCurrentStatus(status); 
+      setCurrentStatus(status);
       addUiLogEntry({ message: "Refreshed logs and status from server.", type: 'info' });
     } catch (error) {
       addUiLogEntry({ message: "Failed to fetch log page data.", type: 'error' });
@@ -33,12 +36,12 @@ export default function LogsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [addUiLogEntry]); 
+  }, [addUiLogEntry]);
 
   useEffect(() => {
     addUiLogEntry({ message: "Navigated to Logs page.", type: 'info' });
     fetchLogPageData();
-  }, [fetchLogPageData, addUiLogEntry]);
+  }, [fetchLogPageData, addUiLogEntry, searchParams]); // Added searchParams dependency
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-start p-4 md:p-8 space-y-8 bg-background">
@@ -66,7 +69,7 @@ export default function LogsPage() {
             <p className="text-center text-muted-foreground">Loading status and logs...</p>
         ) : (
             <StatusDisplay
-            logs={logs} 
+            logs={logs}
             status={currentStatus}
             />
         )}
@@ -76,4 +79,12 @@ export default function LogsPage() {
       </footer>
     </div>
   );
-} 
+}
+
+export default function LogsPage() {
+  return (
+    <Suspense fallback={<div>Loading logs...</div>}>
+      <LogsPageContent />
+    </Suspense>
+  );
+}
