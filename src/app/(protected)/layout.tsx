@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSessionToken, setSessionToken } from '@/lib/session-client';
 import { jwtDecode } from 'jwt-decode';
@@ -18,7 +18,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { SidebarDisplayProvider } from '@/components/ui/sidebar-display-provider';
 import { ShowQueryParams } from '@/components/show-query-params';
 
-function ProtectedLayoutContent({ children }: { children: React.ReactNode }) {
+export default function ProtectedLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [session, setSession] = useState<any>(undefined); // undefined = loading
@@ -145,16 +149,4 @@ function ProtectedLayoutContent({ children }: { children: React.ReactNode }) {
       </SidebarProvider>
     </SidebarDisplayProvider>
   );
-}
-
-export default function ProtectedLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-    return (
-        <Suspense fallback={<div>Loading layout...</div>}>
-            <ProtectedLayoutContent>{children}</ProtectedLayoutContent>
-        </Suspense>
-    )
 }
