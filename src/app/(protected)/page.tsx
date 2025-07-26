@@ -7,7 +7,7 @@ import { getAppStatusAndLogs, getLatestFiles, downloadLocalFile } from "@/lib/ac
 import type { AppConfig, SessionPayload, LatestFileEntry } from "@/types";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Cloud, AlertTriangle, MountainSnow, Tornado, Loader2, Download, Eye, Network, FileText, Settings } from "lucide-react";
+import { Cloud, AlertTriangle, MountainSnow, Tornado, Loader2, Download, Eye, Network, FileText, Settings, Mountain } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -92,6 +92,11 @@ export default function HomePage() {
       href: "/sigwx",
       icon: AlertTriangle,
     },
+    {
+      title: "VAA",
+      href: "/vaa",
+      icon: Mountain,
+    },
   ];
 
   const getProductDisplayName = (productKey: string) => {
@@ -100,12 +105,13 @@ export default function HomePage() {
         case 'sigmet': return 'SIGMET';
         case 'volcanicAsh': return 'Volcanic Ash';
         case 'tropicalCyclone': return 'Tropical Cyclone';
+        case 'vaa': return 'VAA'; // Added VAA case
         default: return productKey;
     }
   };
 
   const isImageFile = (fileName: string) => {
-    return /\.(jpe?g|png|gif|webp)$/i.test(fileName);
+    return /.(jpe?g|png|gif|webp)$/i.test(fileName);
   };
 
   const handleFileView = async (file: LatestFileEntry) => {
@@ -173,7 +179,7 @@ export default function HomePage() {
       }
     } catch (error: any) {
       console.error("Download error:", error);
-      toast({ title: "Download Error", description: error.message || "Could not initiate download.", variant: "destructive" });
+      toast({ title: "Download Error", description: error.message || "Could not initiate download." });
     } finally {
       setDownloadingFile(null);
     }

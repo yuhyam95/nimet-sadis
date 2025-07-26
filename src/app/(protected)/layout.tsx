@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getSessionToken, setSessionToken } from '@/lib/session-client';
 import { jwtDecode } from 'jwt-decode';
 import {
@@ -24,7 +24,9 @@ export default function ProtectedLayout({
   children: React.ReactNode;
 }>) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [session, setSession] = useState<any>(undefined); // undefined = loading
+  const [hideHeader, setHideHeader] = useState(false);
 
   useEffect(() => {
     // Handle SSO token from URL
@@ -32,13 +34,41 @@ export default function ProtectedLayout({
       const url = new URL(window.location.href);
       const sso = url.searchParams.get('sso');
       const tokenFromUrl = url.searchParams.get('token');
+      const hideHeaderParam = url.searchParams.get('hideHeader');
+
       if (sso === '1' && tokenFromUrl) {
         setSessionToken(tokenFromUrl);
         url.searchParams.delete('sso');
         url.searchParams.delete('token');
-        window.history.replaceState({}, '', url.pathname + url.search);
+
+        // Handle hideHeader based on the query parameter
+        if (hideHeaderParam === 'yes') {
+          console.log('Setting hideHeader=yes in localStorage from URL parameter');
+          localStorage.setItem('hideHeader', 'yes');
+        } else if (hideHeaderParam === 'no') {
+           console.log('Setting hideHeader=no in localStorage from URL parameter');
+           localStorage.setItem('hideHeader', 'no');
+        }
+
+        // Remove hideHeader from URL without triggering a reload
+        if (hideHeaderParam) {
+             url.searchParams.delete('hideHeader');
+             window.history.replaceState({}, '', url.pathname + url.search);
+        }
+      }
+
+      // Check for 'hideHeader' flag in localStorage
+      const hideHeaderFromStorage = localStorage.getItem('hideHeader');
+      console.log('hideHeaderFromStorage:', hideHeaderFromStorage);
+      if (hideHeaderFromStorage === 'yes') {
+        console.log('Setting hideHeader state to true from localStorage');
+        setHideHeader(true);
+      } else {
+        console.log('Setting hideHeader state to false from localStorage');
+        setHideHeader(false);
       }
     }
+
     const token = getSessionToken();
     console.log('Layout token:', token);
     if (!token) {
@@ -54,7 +84,28 @@ export default function ProtectedLayout({
       setSession(null);
       router.replace('/login');
     }
-  }, [router]);
+
+  }, [router, searchParams]);
+
+  // Effect to remove the localStorage flag on logout
+  useEffect(() => {
+    const handleStorageChange = () => {
+      if (!getSessionToken()) {
+        // If session token is removed (user logged out), clear the hideHeader flag
+        console.log('Removing hideHeader from localStorage on logout');
+        localStorage.removeItem('hideHeader');
+        setHideHeader(false);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
+  console.log('hideHeader state before rendering:', hideHeader);
 
   if (session === undefined) {
     console.log('Session is loading...');
@@ -68,29 +119,31 @@ export default function ProtectedLayout({
   console.log('Session:', session);
 
   return (
-    <SidebarDisplayProvider showSidebar={true}>
-      <SidebarProvider defaultOpen={true}>
+    <SidebarDisplayProvider showSidebar={!hideHeader}>
+      <SidebarProvider defaultOpen={!hideHeader}>
         <SidebarInset>
           {/* Header bar: title left, user/logout right */}
-          <header className="w-full flex items-center bg-white justify-between gap-4 px-6 py-4 border-b bg-background/80 sticky top-0 z-30">
-            {/* Title box */}
-            <div className="flex items-center px-4 py-2">
-              <h1 className="text-2xl md:text-3xl font-bold text-primary tracking-tight">NiMet-SADIS</h1>
-            </div>
-            {/* User info and logout box */}
-            <div className="flex items-center gap-4 justify-between px-4 py-2">
-              <div className="flex items-center gap-3">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback>{session?.username?.charAt(0).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div className="flex flex-col">
-                  <p className="text-sm font-medium text-foreground">{session?.username}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{session?.roles?.join(', ')}</p>
-                </div>
+          {!hideHeader && (
+            <header className="w-full flex items-center bg-white justify-between gap-4 px-6 py-4 border-b bg-background/80 sticky top-0 z-30">
+              {/* Title box */}
+              <div className="flex items-center px-4 py-2">
+                <h1 className="text-2xl md:text-3xl font-bold text-primary tracking-tight">NiMet-SADIS</h1>
               </div>
-              <LogoutButton />
-            </div>
-          </header>
+              {/* User info and logout box */}
+              <div className="flex items-center gap-4 justify-between px-4 py-2">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback>{session?.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col">
+                    <p className="text-sm font-medium text-foreground">{session?.username}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{session?.roles?.join(', ')}</p>
+                  </div>
+                </div>
+                <LogoutButton />
+              </div>
+            </header>
+          )}
           {children}
         </SidebarInset>
       </SidebarProvider>

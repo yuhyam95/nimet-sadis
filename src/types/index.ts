@@ -5,6 +5,7 @@ export interface AppConfig {
   opmetPath: string;
   sigwxPath: string;
   griddedPath: string;
+  vaaPath: string; // Added vaaPath
 }
 
 export interface LatestFileEntry {

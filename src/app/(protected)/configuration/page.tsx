@@ -19,6 +19,7 @@ const formSchema = z.object({
   opmetPath: z.string().min(1, "OPMET path is required."),
   sigwxPath: z.string().min(1, "SIGWX path is required."),
   griddedPath: z.string().min(1, "GRIDDED path is required."),
+  vaaPath: z.string().min(1, "VAA path is required."),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -34,6 +35,7 @@ export default function ConfigurationPage() {
       opmetPath: "",
       sigwxPath: "",
       griddedPath: "",
+      vaaPath: "",
     },
   });
 
@@ -100,7 +102,7 @@ export default function ConfigurationPage() {
             Configuration
           </h1>
           <p className="text-muted-foreground mt-2 text-lg">
-            Manage FTP and product folder configuration for GRIDDED, OPMET, and SIGWX data.
+            Manage FTP and product folder configuration for GRIDDED, OPMET, SIGWX and VAA data.
           </p>
         </div>
         <div className="md:hidden">
@@ -163,6 +165,20 @@ export default function ConfigurationPage() {
                             <Input placeholder="/path/to/gridded_files" {...field} disabled={isSubmitting} />
                           </FormControl>
                           <FormDescription>Folder containing GRIDDED data.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="vaaPath"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>VAA Path</FormLabel>
+                          <FormControl>
+                            <Input placeholder="/path/to/vaa_files" {...field} disabled={isSubmitting} />
+                          </FormControl>
+                          <FormDescription>Folder containing VAA data.</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}

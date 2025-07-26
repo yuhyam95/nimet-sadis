@@ -27,12 +27,17 @@ export async function GET(req: NextRequest) {
   
   // Log all search params
   console.log('All search params:');
-  for (const [key, value] of req.nextUrl.searchParams.entries()) {
+  const searchParams = req.nextUrl.searchParams;
+  for (const [key, value] of searchParams.entries()) {
     console.log(`${key}: ${value}`);
   }
   
-  const ssoToken = req.nextUrl.searchParams.get('token');
+  const ssoToken = searchParams.get('token');
+  const noMenu = searchParams.get('nomenu'); // Still read nomenu to decide whether to add hideHeader to redirect
+
   console.log('SSO token received:', ssoToken);
+  console.log('nomenu parameter:', noMenu);
+
   if (!ssoToken) {
     console.log('No token provided, redirecting to login');
     return NextResponse.redirect('/login');
@@ -68,8 +73,15 @@ export async function GET(req: NextRequest) {
     }
 
     // Authentication successful, redirect to home
-    console.log('SSO login successful. Redirecting to home.');
-    return NextResponse.redirect(new URL('/', req.url));
+    console.log('SSO login successful.');
+    const redirectUrl = new URL('/', req.url);
+    // If nomenu=yes, add hideHeader=yes to the redirect URL for the client to handle
+    if (noMenu === 'yes') {
+        console.log('Adding hideHeader=yes to redirect URL');
+        redirectUrl.searchParams.set('hideHeader', 'yes');
+    }
+    console.log('Redirecting to:', redirectUrl.toString());
+    return NextResponse.redirect(redirectUrl);
     
   } catch (error) {
     console.error('SSO login error:', error);
