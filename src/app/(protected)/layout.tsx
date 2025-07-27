@@ -4,19 +4,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getSessionToken, setSessionToken } from '@/lib/session-client';
 import { jwtDecode } from 'jwt-decode';
 import {
-    Sidebar,
-    SidebarContent,
-    SidebarFooter,
-    SidebarHeader,
     SidebarInset,
     SidebarProvider,
   } from '@/components/ui/sidebar';
-import Image from 'next/image';
-import { AppSidebarNav } from '@/components/app-sidebar-nav';
 import { LogoutButton } from '@/components/auth/logout-button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { SidebarDisplayProvider } from '@/components/ui/sidebar-display-provider';
-import { ShowQueryParams } from '@/components/show-query-params';
 
 export default function ProtectedLayout({
   children,
