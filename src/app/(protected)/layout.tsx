@@ -21,10 +21,46 @@ export default function ProtectedLayout({
     const [session, setSession] = useState<any>(undefined); // undefined = loading
     const [isHydrated, setIsHydrated] = useState(false);
 
-    useEffect(() => {
-      if (typeof window === 'undefined') return;
+  useEffect(() => {
+    // Handle SSO token from URL
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      const sso = url.searchParams.get('sso');
+      const tokenFromUrl = url.searchParams.get('token');
+      const hideHeaderParam = url.searchParams.get('hideHeader');
 
-      setIsHydrated(true); // Mark hydrated
+      if (sso === '1' && tokenFromUrl) {
+        setSessionToken(tokenFromUrl);
+        url.searchParams.delete('sso');
+        url.searchParams.delete('token');
+
+        // Handle hideHeader based on the query parameter
+        if (hideHeaderParam === 'yes') {
+          console.log('Setting hideHeader=yes in localStorage from URL parameter');
+          localStorage.setItem('hideHeader', 'yes');
+        } else if (hideHeaderParam === 'no') {
+           console.log('Setting hideHeader=no in localStorage from URL parameter');
+           localStorage.setItem('hideHeader', 'no');
+        }
+
+        // Remove hideHeader from URL without triggering a reload
+        if (hideHeaderParam) {
+             url.searchParams.delete('hideHeader');
+             window.history.replaceState({}, '', url.pathname + url.search);
+        }
+      }
+
+      // Check for 'hideHeader' flag in localStorage
+      const hideHeaderFromStorage = localStorage.getItem('hideHeader');
+      console.log('hideHeaderFromStorage:', hideHeaderFromStorage);
+      if (hideHeaderFromStorage === 'yes') {
+        console.log('Setting hideHeader state to true from localStorage');
+        setHideHeader(true);
+      } else {
+        console.log('Setting hideHeader state to false from localStorage');
+        setHideHeader(false);
+      }
+    }
 
       const token = getSessionToken();
       if (!token) {
