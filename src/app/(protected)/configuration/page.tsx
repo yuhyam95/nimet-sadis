@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useToast } from "@/hooks/use-toast";
-import type { AppConfig } from "@/types";
 import { submitConfiguration, getAppStatusAndLogs } from "@/lib/actions";
 
 const formSchema = z.object({
