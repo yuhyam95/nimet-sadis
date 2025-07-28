@@ -7,10 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertCircle, LogIn, Loader2 } from 'lucide-react';
+import { LogIn, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
-import { setSessionToken } from '@/lib/session-client';
 
 
 export default function LoginPage() {
@@ -33,7 +32,9 @@ export default function LoginPage() {
                     variant: 'destructive',
                 });
             } else if (result && result.success) {
-                // Authentication successful, redirect to home
+                // Authentication successful, set session token and redirect to home
+                const sessionToken = `user_${Date.now()}`;
+                localStorage.setItem('session', sessionToken);
                 window.location.href = '/';
             }
         });

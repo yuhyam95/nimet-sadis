@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSession } from '@/lib/auth';
 
 interface ApiResponse {
   UserID: number;
@@ -75,12 +74,17 @@ export async function GET(req: NextRequest) {
     // Authentication successful, redirect to home
     console.log('SSO login successful.');
     const redirectUrl = new URL('/', req.url);
+    
     // If nomenu=yes, add hideHeader=yes to the redirect URL for the client to handle
     if (noMenu === 'yes') {
         console.log('Adding hideHeader=yes to redirect URL');
         redirectUrl.searchParams.set('hideHeader', 'yes');
     }
     console.log('Redirecting to:', redirectUrl.toString());
+    
+    // Add a temporary flag to indicate successful SSO login
+    redirectUrl.searchParams.set('sso_success', '1');
+    
     return NextResponse.redirect(redirectUrl);
     
   } catch (error) {

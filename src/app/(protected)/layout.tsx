@@ -1,8 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getSessionToken } from '@/lib/session-client';
-import { jwtDecode } from 'jwt-decode';
 import {
   SidebarInset,
   SidebarProvider,
@@ -18,13 +16,27 @@ export default function ProtectedLayout({
 }>) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [session, setSession] = useState<any>(undefined); // undefined = loading
   const [hideHeader, setHideHeader] = useState(false);
 
   useEffect(() => {
     console.log('Layout useEffect triggered');
     const hideHeaderParam = searchParams.get('hideHeader');
+    const ssoSuccessParam = searchParams.get('sso_success');
     console.log('hideHeaderParam from URL:', hideHeaderParam);
+    console.log('ssoSuccessParam from URL:', ssoSuccessParam);
+
+    // Handle SSO success flag and create session token
+    if (ssoSuccessParam === '1') {
+      console.log('SSO login detected, creating session token');
+      const sessionToken = `user_${Date.now()}`;
+      localStorage.setItem('session', sessionToken);
+      
+      // Remove sso_success from URL without triggering a reload
+      const url = new URL(window.location.href);
+      url.searchParams.delete('sso_success');
+      window.history.replaceState({}, '', url.pathname + url.search);
+      console.log('Removed sso_success from URL');
+    }
 
     if (hideHeaderParam !== null) { // Check if the parameter exists
       if (hideHeaderParam === 'yes') {
@@ -54,28 +66,24 @@ export default function ProtectedLayout({
       setHideHeader(false);
     }
 
-    const token = getSessionToken();
-    console.log('Layout token:', token);
-    if (!token) {
-      setSession(null);
+    // Check for session token in localStorage
+    const storedSessionToken = localStorage.getItem('session');
+    if (!storedSessionToken) {
+      console.log('No session token found, redirecting to login');
       router.replace('/login');
       return;
     }
-    try {
-      const decoded = jwtDecode(token);
-      console.log('Decoded session:', decoded);
-      setSession(decoded);
-    } catch (e) {
-      setSession(null);
-      router.replace('/login');
-    }
+
+    console.log('Session check completed');
 
   }, [router, searchParams]);
 
   // Effect to remove the localStorage flag on logout
   useEffect(() => {
     const handleStorageChange = () => {
-      if (!getSessionToken()) {
+      // Check if user is logged out by checking localStorage
+      const isLoggedOut = !localStorage.getItem('session');
+      if (isLoggedOut) {
         // If session token is removed (user logged out), clear the hideHeader flag
         console.log('Removing hideHeader from localStorage on logout');
         localStorage.removeItem('hideHeader');
@@ -92,17 +100,6 @@ export default function ProtectedLayout({
 
   console.log('hideHeader state before rendering:', hideHeader);
 
-  if (session === undefined) {
-    console.log('Session is loading...');
-    // Loading state: render a blank div or spinner
-    return <div />;
-  }
-  if (!session) {
-    console.log('No session, not rendering children');
-    return null;
-  }
-  console.log('Session:', session);
-
   return (
     <SidebarDisplayProvider showSidebar={!hideHeader}>
       <SidebarProvider defaultOpen={!hideHeader}>
@@ -118,11 +115,11 @@ export default function ProtectedLayout({
               <div className="flex items-center gap-4 justify-between px-4 py-2">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-8 w-8">
-                    <AvatarFallback>{session?.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                    <AvatarFallback>U</AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col">
-                    <p className="text-sm font-medium text-foreground">{session?.username}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{session?.roles?.join(', ')}</p>
+                    <p className="text-sm font-medium text-foreground">User</p>
+                    <p className="text-xs text-muted-foreground capitalize">user</p>
                   </div>
                 </div>
                 <LogoutButton />
