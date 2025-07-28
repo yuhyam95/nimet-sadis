@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   SidebarInset,
@@ -9,14 +9,12 @@ import { LogoutButton } from '@/components/auth/logout-button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { SidebarDisplayProvider } from '@/components/ui/sidebar-display-provider';
 
-export default function ProtectedLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+function LayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [hideHeader, setHideHeader] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
     console.log('Layout useEffect triggered');
@@ -36,6 +34,10 @@ export default function ProtectedLayout({
       url.searchParams.delete('sso_success');
       window.history.replaceState({}, '', url.pathname + url.search);
       console.log('Removed sso_success from URL');
+      
+      // Set authenticated immediately after creating session
+      setIsAuthenticated(true);
+      setIsCheckingAuth(false);
     }
 
     if (hideHeaderParam !== null) { // Check if the parameter exists
@@ -66,19 +68,41 @@ export default function ProtectedLayout({
       setHideHeader(false);
     }
 
-    // Check for session token in localStorage
-    const storedSessionToken = localStorage.getItem('session');
-    if (!storedSessionToken) {
-      console.log('No session token found, redirecting to login');
-      router.replace('/login');
-      return;
-    }
+    // Check for session token in localStorage with retry logic
+    const checkSession = () => {
+      const storedSessionToken = localStorage.getItem('session');
+      console.log('Checking session token:', storedSessionToken ? 'exists' : 'not found');
+      
+      if (storedSessionToken) {
+        console.log('Session token found, authentication successful');
+        setIsAuthenticated(true);
+        setIsCheckingAuth(false);
+      } else {
+        console.log('No session token found');
+        setIsAuthenticated(false);
+        setIsCheckingAuth(false);
+      }
+    };
 
-    console.log('Session check completed');
+    // Initial check
+    checkSession();
+
+    // If no session found and we're not in SSO flow, redirect after a short delay
+    if (!ssoSuccessParam && !localStorage.getItem('session')) {
+      console.log('No SSO flow detected and no session, will redirect to login');
+      const timer = setTimeout(() => {
+        if (!localStorage.getItem('session')) {
+          console.log('Redirecting to login after timeout');
+          router.replace('/login');
+        }
+      }, 1000); // 1 second delay to allow for any race conditions
+
+      return () => clearTimeout(timer);
+    }
 
   }, [router, searchParams]);
 
-  // Effect to remove the localStorage flag on logout
+  // Effect to remove the localStorage flag on logout and periodic session check
   useEffect(() => {
     const handleStorageChange = () => {
       // Check if user is logged out by checking localStorage
@@ -88,17 +112,51 @@ export default function ProtectedLayout({
         console.log('Removing hideHeader from localStorage on logout');
         localStorage.removeItem('hideHeader');
         setHideHeader(false);
+        setIsAuthenticated(false);
       }
     };
+
+    // Periodic session check to handle race conditions
+    const sessionCheckInterval = setInterval(() => {
+      const sessionToken = localStorage.getItem('session');
+      if (sessionToken && !isAuthenticated) {
+        console.log('Session token found during periodic check, updating authentication state');
+        setIsAuthenticated(true);
+      } else if (!sessionToken && isAuthenticated) {
+        console.log('Session token missing during periodic check, updating authentication state');
+        setIsAuthenticated(false);
+      }
+    }, 2000); // Check every 2 seconds
 
     window.addEventListener('storage', handleStorageChange);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
+      clearInterval(sessionCheckInterval);
     };
-  }, []);
+  }, [isAuthenticated]);
 
   console.log('hideHeader state before rendering:', hideHeader);
+  console.log('Authentication state:', { isAuthenticated, isCheckingAuth });
+
+  // Show loading state while checking authentication
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Redirect to login if not authenticated
+  if (!isAuthenticated) {
+    console.log('Not authenticated, redirecting to login');
+    router.replace('/login');
+    return null;
+  }
 
   return (
     <SidebarDisplayProvider showSidebar={!hideHeader}>
@@ -130,5 +188,17 @@ export default function ProtectedLayout({
         </SidebarInset>
       </SidebarProvider>
     </SidebarDisplayProvider>
+  );
+}
+
+export default function ProtectedLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <LayoutContent>{children}</LayoutContent>
+    </Suspense>
   );
 }
