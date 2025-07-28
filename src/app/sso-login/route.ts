@@ -24,16 +24,16 @@ export async function GET(req: NextRequest) {
   console.log('=== SSO LOGIN ROUTE HIT ===');
   console.log('Request URL:', req.url);
   console.log('Request method:', req.method);
-  
+
   // Log all search params
   console.log('All search params:');
   const searchParams = req.nextUrl.searchParams;
   for (const [key, value] of searchParams.entries()) {
     console.log(`${key}: ${value}`);
   }
-  
+
   const ssoToken = searchParams.get('token');
-  const noMenu = searchParams.get('nomenu'); // Still read nomenu to decide whether to add hideHeader to redirect
+  const noMenu = searchParams.get('nomenu');
 
   console.log('SSO token received:', ssoToken);
   console.log('nomenu parameter:', noMenu);
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     console.log('API URL:', apiUrl);
     // Remove encryption: Pass token directly
     console.log('Request body:', JSON.stringify({ dataencrypted: ssoToken }));
-    
+
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
 
     const data: ApiResponse = JSON.parse(responseText);
     console.log('SSO API parsed response:', data);
-    
+
     if (!data.IsSuccess) {
       console.error('API returned IsSuccess: false, Message:', data.Message);
       return NextResponse.redirect('/login');
@@ -75,14 +75,19 @@ export async function GET(req: NextRequest) {
     // Authentication successful, redirect to home
     console.log('SSO login successful.');
     const redirectUrl = new URL('/', req.url);
-    // If nomenu=yes, add hideHeader=yes to the redirect URL for the client to handle
+
+    // Set hideHeader=yes if nomenu=yes, otherwise set hideHeader=no
     if (noMenu === 'yes') {
         console.log('Adding hideHeader=yes to redirect URL');
         redirectUrl.searchParams.set('hideHeader', 'yes');
+    } else {
+        console.log('Adding hideHeader=no to redirect URL');
+        redirectUrl.searchParams.set('hideHeader', 'no');
     }
+
     console.log('Redirecting to:', redirectUrl.toString());
     return NextResponse.redirect(redirectUrl);
-    
+
   } catch (error) {
     console.error('SSO login error:', error);
     return NextResponse.redirect(new URL('/login', req.url));
