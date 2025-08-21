@@ -39,7 +39,9 @@ export async function GET(req: NextRequest) {
 
   if (!ssoToken) {
     console.log('No token provided, redirecting to login');
-    const host = req.headers.get('host') || req.nextUrl.host;
+    // Check for X-Forwarded-Host first, then host, then request host
+    const forwardedHost = req.headers.get('x-forwarded-host');
+    const host = forwardedHost || req.headers.get('host') || req.nextUrl.host;
     const protocol = req.headers.get('x-forwarded-proto') || 'https';
     const baseUrl = `${protocol}://${host}`;
     return NextResponse.redirect(new URL('/login', baseUrl));
@@ -63,7 +65,9 @@ export async function GET(req: NextRequest) {
     console.log('SSO API raw response:', responseText);
     if (!response.ok) {
       console.error('API request failed:', response.status, response.statusText);
-      const host = req.headers.get('host') || req.nextUrl.host;
+      // Check for X-Forwarded-Host first, then host, then request host
+      const forwardedHost = req.headers.get('x-forwarded-host');
+      const host = forwardedHost || req.headers.get('host') || req.nextUrl.host;
       const protocol = req.headers.get('x-forwarded-proto') || 'https';
       const baseUrl = `${protocol}://${host}`;
       return NextResponse.redirect(new URL('/login', baseUrl));
@@ -74,7 +78,9 @@ export async function GET(req: NextRequest) {
     
     if (!data.IsSuccess) {
       console.error('API returned IsSuccess: false, Message:', data.Message);
-      const host = req.headers.get('host') || req.nextUrl.host;
+      // Check for X-Forwarded-Host first, then host, then request host
+      const forwardedHost = req.headers.get('x-forwarded-host');
+      const host = forwardedHost || req.headers.get('host') || req.nextUrl.host;
       const protocol = req.headers.get('x-forwarded-proto') || 'https';
       const baseUrl = `${protocol}://${host}`;
       return NextResponse.redirect(new URL('/login', baseUrl));
@@ -84,7 +90,9 @@ export async function GET(req: NextRequest) {
     console.log('SSO login successful.');
     
     // Get the correct host from headers or use the request host
-    const host = req.headers.get('host') || req.nextUrl.host;
+    // Check for X-Forwarded-Host first, then host, then request host
+    const forwardedHost = req.headers.get('x-forwarded-host');
+    const host = forwardedHost || req.headers.get('host') || req.nextUrl.host;
     const protocol = req.headers.get('x-forwarded-proto') || 'https';
     const baseUrl = `${protocol}://${host}`;
     
@@ -104,7 +112,9 @@ export async function GET(req: NextRequest) {
     
   } catch (error) {
     console.error('SSO login error:', error);
-    const host = req.headers.get('host') || req.nextUrl.host;
+    // Check for X-Forwarded-Host first, then host, then request host
+    const forwardedHost = req.headers.get('x-forwarded-host');
+    const host = forwardedHost || req.headers.get('host') || req.nextUrl.host;
     const protocol = req.headers.get('x-forwarded-proto') || 'https';
     const baseUrl = `${protocol}://${host}`;
     return NextResponse.redirect(new URL('/login', baseUrl));
