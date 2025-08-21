@@ -39,7 +39,10 @@ export async function GET(req: NextRequest) {
 
   if (!ssoToken) {
     console.log('No token provided, redirecting to login');
-    return NextResponse.redirect('/login');
+    const host = req.headers.get('host') || req.nextUrl.host;
+    const protocol = req.headers.get('x-forwarded-proto') || 'https';
+    const baseUrl = `${protocol}://${host}`;
+    return NextResponse.redirect(new URL('/login', baseUrl));
   }
 
   try {
@@ -60,7 +63,10 @@ export async function GET(req: NextRequest) {
     console.log('SSO API raw response:', responseText);
     if (!response.ok) {
       console.error('API request failed:', response.status, response.statusText);
-      return NextResponse.redirect('/login');
+      const host = req.headers.get('host') || req.nextUrl.host;
+      const protocol = req.headers.get('x-forwarded-proto') || 'https';
+      const baseUrl = `${protocol}://${host}`;
+      return NextResponse.redirect(new URL('/login', baseUrl));
     }
 
     const data: ApiResponse = JSON.parse(responseText);
@@ -68,12 +74,21 @@ export async function GET(req: NextRequest) {
     
     if (!data.IsSuccess) {
       console.error('API returned IsSuccess: false, Message:', data.Message);
-      return NextResponse.redirect('/login');
+      const host = req.headers.get('host') || req.nextUrl.host;
+      const protocol = req.headers.get('x-forwarded-proto') || 'https';
+      const baseUrl = `${protocol}://${host}`;
+      return NextResponse.redirect(new URL('/login', baseUrl));
     }
 
     // Authentication successful, redirect to home
     console.log('SSO login successful.');
-    const redirectUrl = new URL('/', req.url);
+    
+    // Get the correct host from headers or use the request host
+    const host = req.headers.get('host') || req.nextUrl.host;
+    const protocol = req.headers.get('x-forwarded-proto') || 'https';
+    const baseUrl = `${protocol}://${host}`;
+    
+    const redirectUrl = new URL('/', baseUrl);
     
     // If nomenu=yes, add hideHeader=yes to the redirect URL for the client to handle
     if (noMenu === 'yes') {
@@ -89,6 +104,9 @@ export async function GET(req: NextRequest) {
     
   } catch (error) {
     console.error('SSO login error:', error);
-    return NextResponse.redirect(new URL('/login', req.url));
+    const host = req.headers.get('host') || req.nextUrl.host;
+    const protocol = req.headers.get('x-forwarded-proto') || 'https';
+    const baseUrl = `${protocol}://${host}`;
+    return NextResponse.redirect(new URL('/login', baseUrl));
   }
 }
