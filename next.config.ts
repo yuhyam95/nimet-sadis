@@ -1,8 +1,6 @@
-
-import type {NextConfig} from 'next';
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -27,8 +25,21 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
-      bodySizeLimit: '2mb', // Optional: configure body size limit for server actions
+      bodySizeLimit: '2mb',
     },
+  },
+
+  // 👇 Add this part
+  async headers() {
+    return [
+      {
+        source: "/(.*)", // Apply to all routes
+        headers: [
+          { key: "X-Forwarded-Proto", value: "https" },
+          { key: "X-Forwarded-Host", value: "sadis.nimet.gov.ng" },
+        ],
+      },
+    ];
   },
 };
 

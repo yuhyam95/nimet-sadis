@@ -45,10 +45,10 @@ export interface ActionResponse {
 
 let currentAppConfig: AppConfig | null = null;
 const defaultPaths: AppConfig = {
-    opmetPath: '/home/nimet/ SADIS-Visualization/Latest_Outputs/OPMET',
-    sigwxPath: '/home/nimet/ SADIS-Visualization/Latest_Outputs/SIGWX',
-    griddedPath: '/home/nimet/ SADIS-Visualization/Latest_Outputs/GRIDDED',
-    vaaPath: '/home/nimet/ SADIS-Visualization/Latest_Outputs/VAA',
+    opmetPath: '/home/nimet/SADIS-Visualization/Latest_Outputs/OPMET',
+    sigwxPath: '/home/nimet/SADIS-Visualization/Latest_Outputs/SIGWX',
+    griddedPath: '/home/nimet/SADIS-Visualization/Latest_Outputs/GRIDDED',
+    vaaPath: '/home/nimet/SADIS-Visualization/Latest_Outputs/VAA',
 };
 if (!currentAppConfig) {
     currentAppConfig = defaultPaths;
