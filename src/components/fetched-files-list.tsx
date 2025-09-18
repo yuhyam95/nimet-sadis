@@ -194,8 +194,8 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
                 setPreviewImageUrl(imageUrl);
                 setPreviewText(null);
             } else if (isTextFile(file.name)) {
-                // Only preview first 100KB
-                const maxBytes = 100 * 1024;
+                // Only preview first 1MB
+                const maxBytes = 1024 * 1024;
                 const text = new TextDecoder('utf-8').decode(byteArray.slice(0, maxBytes));
                 setPreviewText(text);
                 setPreviewImageUrl(null);
@@ -356,7 +356,14 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
         <DialogContent className="w-[95vw] h-[95vh] max-w-none max-h-none">
           <DialogHeaderPrimitive>
             <DialogTitle className="flex items-center justify-between">
-              <span>{previewImageName || 'File Preview'}</span>
+              <div className="flex flex-col">
+                <span>{previewImageName || 'File Preview'}</span>
+                {previewText && (
+                  <span className="text-sm text-muted-foreground font-normal">
+                    {previewText.split('\n').length} lines
+                  </span>
+                )}
+              </div>
               {previewFile && (
                 <span className="text-sm text-muted-foreground">
                   {format(new Date(previewFile.lastModified), "PPp")}
