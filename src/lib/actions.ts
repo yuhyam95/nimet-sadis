@@ -9,7 +9,6 @@ import { connectToDatabase } from './db';
 import bcrypt from 'bcryptjs';
 import { ObjectId } from 'mongodb';
 import { createSession, deleteSession, getSession } from './auth';
-// import { getSessionToken, setSessionToken } from './session-client'; // Removed session-client import
 import { redirect } from 'next/navigation';
 
 const operationLogs: AppLogEntry[] = [];

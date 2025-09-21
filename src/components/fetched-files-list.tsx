@@ -194,8 +194,8 @@ export function FetchedFilesList({ content, onFolderClick, productKey, currentPa
                 setPreviewImageUrl(imageUrl);
                 setPreviewText(null);
             } else if (isTextFile(file.name)) {
-                // Only preview first 1MB
-                const maxBytes = 1024 * 1024;
+                // Only preview first 16MB
+                const maxBytes = 16 * 1024 * 1024;
                 const text = new TextDecoder('utf-8').decode(byteArray.slice(0, maxBytes));
                 setPreviewText(text);
                 setPreviewImageUrl(null);

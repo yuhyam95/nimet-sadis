@@ -105,10 +105,17 @@ export async function GET(req: NextRequest) {
     }
     console.log('Redirecting to:', redirectUrl.toString());
     
-    // Add a temporary flag to indicate successful SSO login
-    redirectUrl.searchParams.set('sso_success', '1');
+    // Create response with session token in a cookie
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+    const sessionToken = `user_${data.UserID}_${Date.now()}_${data.Username}`;
+    redirectResponse.cookies.set('session', sessionToken, {
+        httpOnly: false, // Allow client-side access
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 // 24 hours
+    });
     
-    return NextResponse.redirect(redirectUrl);
+    return redirectResponse;
     
   } catch (error) {
     console.error('SSO login error:', error);

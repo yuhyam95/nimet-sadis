@@ -29,7 +29,7 @@ const nextConfig: NextConfig = {
     },
   },
 
-  // 👇 Add this part
+
   async headers() {
     return [
       {
