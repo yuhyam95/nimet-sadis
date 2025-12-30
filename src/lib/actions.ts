@@ -478,8 +478,8 @@ export async function loginAction(formData: FormData): Promise<{ success: boolea
   //     (fetchOptions.headers as any)['Authorization'] = `Bearer ${token}`;
   //   }
   // } // Removed token logic
-  console.log('Fetch URL:', url);
-  console.log('Fetch options:', fetchOptions);
+  // console.log('Fetch URL:', url);
+  // console.log('Fetch options:', fetchOptions);
 
   try {
     const response = await fetch(url, fetchOptions); // POST with JSON body

@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
     const apiUrl = 'https://edms.nimet.gov.ng/api/sadis/checkuser';
     console.log('API URL:', apiUrl);
     // Remove encryption: Pass token directly
-    console.log('Request body:', JSON.stringify({ dataencrypted: ssoToken }));
+    //console.log('Request body:', JSON.stringify({ dataencrypted: ssoToken }));
     
     const response = await fetch(apiUrl, {
       method: 'POST',
